@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SubscriptionController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -80,5 +81,12 @@ Route::get('/', function () {
         ? redirect()->route('dashboard')
         : redirect()->route('login');
 });
+
+//Route::middleware('auth')->group(function () {
+//    Route::get('/subscription', [SubscriptionController::class, 'index'])->name('subscription.index');
+//    Route::post('/subscription/initiate', [SubscriptionController::class, 'initiate'])->name('subscription.initiate');
+//});
+//
+//Route::post('/wayforpay/callback', [SubscriptionController::class, 'callback'])->name('wayforpay.callback');
 
 require __DIR__.'/auth.php';

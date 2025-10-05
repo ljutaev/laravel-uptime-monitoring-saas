@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'wayforpay' => [
+        'merchant_account' => env('WAYFORPAY_MERCHANT_ACCOUNT'),
+        'secret_key' => env('WAYFORPAY_SECRET_KEY'),
+        'domain' => env('WAYFORPAY_DOMAIN', 'uptime-monitor.com'),
+    ],
+
 ];
