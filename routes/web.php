@@ -6,6 +6,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MonitorController;
 
 
 
@@ -73,6 +74,8 @@ Route::middleware('auth')->group(function () {
 
         return Inertia::render('User/Plans', ['plans' => $plans]);
     })->name('user.plans');
+
+    Route::resource('/dashboard/monitors', MonitorController::class);
 });
 
 Route::get('/', function () {
