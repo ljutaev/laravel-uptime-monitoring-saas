@@ -37,7 +37,7 @@ class MonitorPolicy
      */
     public function update(User $user, Monitor $monitor): bool
     {
-        return false;
+        return $user->id === $monitor->user_id;
     }
 
     /**
@@ -45,7 +45,7 @@ class MonitorPolicy
      */
     public function delete(User $user, Monitor $monitor): bool
     {
-        return false;
+        return $user->id === $monitor->user_id;
     }
 
     /**

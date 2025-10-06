@@ -9,7 +9,7 @@ const props = defineProps({
 
 const deleteMonitor = (id) => {
     if (confirm('Ви впевнені що хочете видалити цей монітор?')) {
-        router.delete(`/monitors/${id}`, {
+        router.delete(`/dashboard/monitors/${id}`, {
             preserveScroll: true,
         });
     }

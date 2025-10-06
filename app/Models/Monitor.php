@@ -96,4 +96,14 @@ class Monitor extends Model
             default => '●',
         };
     }
+
+    public function getProtocolAttribute(): string
+    {
+        return parse_url($this->url, PHP_URL_SCHEME) ?? 'https';
+    }
+
+    public function isHttps(): bool
+    {
+        return $this->protocol === 'https';
+    }
 }

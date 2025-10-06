@@ -16,7 +16,6 @@ return new class extends Migration
             // Базова інформація
             $table->string('name');
             $table->string('url', 500);
-            $table->enum('type', ['http', 'https'])->default('https');
 
             // Налаштування перевірки
             $table->integer('check_interval')->default(5); // хвилини
