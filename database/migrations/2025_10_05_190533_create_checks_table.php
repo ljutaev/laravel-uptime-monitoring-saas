@@ -13,7 +13,26 @@ return new class extends Migration
     {
         Schema::create('checks', function (Blueprint $table) {
             $table->id();
-            $table->timestamps();
+            $table->foreignId('monitor_id')->constrained()->onDelete('cascade');
+
+            // Результат перевірки
+            $table->boolean('is_up')->default(true);
+            $table->integer('status_code')->nullable();
+            $table->integer('response_time')->nullable(); // мілісекунди
+
+            // SSL перевірка
+            $table->boolean('ssl_valid')->nullable();
+            $table->timestamp('ssl_expires_at')->nullable();
+
+            // Помилки
+            $table->text('error_message')->nullable();
+            $table->string('error_type')->nullable(); // timeout, connection, ssl
+
+            // Час перевірки
+            $table->timestamp('checked_at')->index();
+
+            $table->index(['monitor_id', 'checked_at']);
+            $table->index(['monitor_id', 'is_up']);
         });
     }
 

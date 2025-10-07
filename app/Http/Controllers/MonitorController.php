@@ -69,9 +69,173 @@ class MonitorController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Monitor $monitor)
     {
-        //
+        $this->authorize('view', $monitor);
+
+        $period = request('period', 'today'); // today, 7d, 30d
+        $tab = request('tab', 'overview'); // overview, checks, incidents
+
+        // Базова інформація
+        $monitorData = [
+            'id' => $monitor->id,
+            'name' => $monitor->name,
+            'url' => $monitor->url,
+            'status' => $monitor->status,
+            'check_interval' => $monitor->check_interval,
+            'last_checked_at' => $monitor->last_checked_at?->format('Y-m-d H:i:s'),
+            'created_at' => $monitor->created_at->format('Y-m-d H:i:s'),
+        ];
+
+        // Overview даних
+        $days = match($period) {
+            'today' => 1,
+            '7d' => 7,
+            '30d' => 30,
+            default => 1,
+        };
+
+        $overview = [
+            'uptime' => $monitor->calculateUptime($days),
+            'uptime_duration' => $this->getUptimeDuration($monitor, $days),
+            'avg_response_time' => $monitor->averageResponseTime($days),
+            'total_checks' => $monitor->checks()->where('checked_at', '>=', now()->subDays($days))->count(),
+            'incidents_count' => $monitor->incidents()->where('started_at', '>=', now()->subDays($days))->count(),
+        ];
+
+        // Графік response time
+        $chartData = $this->getResponseTimeChart($monitor, $days);
+
+        // Recent checks (для overview)
+        $recentChecks = $monitor->checks()
+            ->where('checked_at', '>=', now()->subDays($days))
+            ->latest('checked_at')
+            ->limit(5)
+            ->get()
+            ->map(fn($check) => [
+                'status_code' => $check->status_code,
+                'response_time' => $check->response_time,
+                'checked_at' => $check->checked_at->format('Y-m-d H:i:s'),
+            ]);
+
+        // SSL Info
+        $latestCheck = $monitor->checks()->latest('checked_at')->first();
+        $sslInfo = null;
+
+        if ($latestCheck && $latestCheck->ssl_expires_at) {
+            $daysUntilExpiry = now()->diffInDays($latestCheck->ssl_expires_at, false);
+            $sslInfo = [
+                'valid' => $latestCheck->ssl_valid,
+                'expires_at' => $latestCheck->ssl_expires_at->format('Y-m-d'),
+                'days_remaining' => $daysUntilExpiry,
+                'is_expiring_soon' => $daysUntilExpiry < 30,
+            ];
+        }
+
+        // Checks list (для таба checks)
+        $checks = null;
+        if ($tab === 'checks') {
+            $checks = $monitor->checks()
+                ->where('checked_at', '>=', now()->subDays($days))
+                ->latest('checked_at')
+                ->paginate(10)
+                ->through(fn($check) => [
+                    'status_code' => $check->status_code,
+                    'response_time' => $check->response_time,
+                    'is_up' => $check->is_up,
+                    'error_message' => $check->error_message,
+                    'checked_at' => $check->checked_at->format('Y-m-d H:i:s'),
+                ]);
+        }
+
+        // Incidents list (для таба incidents)
+        $incidents = null;
+        if ($tab === 'incidents') {
+            $incidents = $monitor->incidents()
+                ->where('started_at', '>=', now()->subDays($days))
+                ->latest('started_at')
+                ->paginate(10)
+                ->through(fn($incident) => [
+                    'id' => $incident->id,
+                    'status' => $incident->status,
+                    'started_at' => $incident->started_at->format('Y-m-d H:i:s'),
+                    'resolved_at' => $incident->resolved_at?->format('Y-m-d H:i:s'),
+                    'duration' => $incident->getDurationFormatted(),
+                    'error_message' => $incident->error_message,
+                ]);
+        }
+
+        return Inertia::render('User/Monitors/Show', [
+            'monitor' => $monitorData,
+            'overview' => $overview,
+            'chartData' => $chartData,
+            'recentChecks' => $recentChecks,
+            'sslInfo' => $sslInfo,
+            'checks' => $checks,
+            'incidents' => $incidents,
+            'currentTab' => $tab,
+            'currentPeriod' => $period,
+        ]);
+    }
+
+    private function getUptimeDuration(Monitor $monitor, int $days): string
+    {
+        $totalMinutes = $days * 24 * 60;
+        $uptime = $monitor->calculateUptime($days);
+        $uptimeMinutes = ($uptime / 100) * $totalMinutes;
+
+        $hours = floor($uptimeMinutes / 60);
+        $minutes = $uptimeMinutes % 60;
+
+        if ($hours > 24) {
+            $days = floor($hours / 24);
+            $hours = $hours % 24;
+            return "{$days} д {$hours} год";
+        }
+
+        return "{$hours} год {$minutes} хв";
+    }
+
+    private function getResponseTimeChart(Monitor $monitor, int $days): array
+    {
+        $interval = $days === 1 ? 'HOUR' : 'DATE';
+
+        $data = \DB::table('checks')
+            ->select(
+                \DB::raw("{$interval}(checked_at) as period"),
+                \DB::raw('AVG(response_time) as avg_response')
+            )
+            ->where('monitor_id', $monitor->id)
+            ->where('checked_at', '>=', now()->subDays($days))
+            ->where('is_up', true)
+            ->groupBy('period')
+            ->orderBy('period')
+            ->get();
+
+        $labels = [];
+        $values = [];
+
+        $periods = $days === 1 ? 24 : $days;
+
+        for ($i = $periods - 1; $i >= 0; $i--) {
+            $date = $days === 1
+                ? now()->subHours($i)
+                : now()->subDays($i);
+
+            $periodValue = $days === 1
+                ? $date->format('H')
+                : $date->format('Y-m-d');
+
+            $labels[] = $date->format($days === 1 ? 'H:00' : 'd.m');
+
+            $periodData = $data->firstWhere('period', $periodValue);
+            $values[] = $periodData ? round($periodData->avg_response) : null;
+        }
+
+        return [
+            'labels' => $labels,
+            'data' => $values,
+        ];
     }
 
     /**

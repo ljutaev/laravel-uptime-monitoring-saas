@@ -21,7 +21,7 @@ class MonitorPolicy
      */
     public function view(User $user, Monitor $monitor): bool
     {
-        return false;
+        return $user->id === $monitor->user_id;
     }
 
     /**

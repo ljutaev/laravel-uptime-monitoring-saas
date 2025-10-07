@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
+
 class Monitor extends Model
 {
     use HasFactory;
@@ -105,5 +106,36 @@ class Monitor extends Model
     public function isHttps(): bool
     {
         return $this->protocol === 'https';
+    }
+
+    public function currentIncident()
+    {
+        return $this->hasOne(Incident::class)
+            ->where('status', 'ongoing')
+            ->latest();
+    }
+
+    public function calculateUptime(int $days = 30): float
+    {
+        $totalChecks = $this->checks()
+            ->where('checked_at', '>=', now()->subDays($days))
+            ->count();
+
+        if ($totalChecks === 0) return 100.0;
+
+        $successfulChecks = $this->checks()
+            ->where('checked_at', '>=', now()->subDays($days))
+            ->where('is_up', true)
+            ->count();
+
+        return round(($successfulChecks / $totalChecks) * 100, 2);
+    }
+
+    public function averageResponseTime(int $days = 7): int
+    {
+        return (int) $this->checks()
+            ->where('checked_at', '>=', now()->subDays($days))
+            ->where('is_up', true)
+            ->avg('response_time');
     }
 }
