@@ -92,11 +92,13 @@ const billingCycle = ref("month"); // "month" | "year"
                     </p>
                 </div>
 
-                <button class="flex w-full items-center justify-center rounded-lg bg-gray-800 p-3.5 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-500 dark:bg-white/10"
+                <a
+                    :href="route('checkout.show', { plan: 1, interval: billingCycle })"
+                    class="flex w-full items-center justify-center rounded-lg bg-gray-800 p-3.5 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-500 dark:bg-white/10"
                     :class="plan.active ? 'bg-blue-800 hover:bg-gray-900 dark:bg-white/10' : ''"
                 >
                     Choose Starter
-                </button>
+                </a>
             </div>
         </div>
 

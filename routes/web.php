@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MonitorController;
-
+use App\Http\Controllers\CheckoutController;
 
 
 Route::get('/', function () {
@@ -76,6 +76,12 @@ Route::middleware('auth')->group(function () {
     })->name('user.plans');
 
     Route::resource('/dashboard/monitors', MonitorController::class);
+
+    Route::get('/checkout/{plan}', [CheckoutController::class, 'show'])->name('checkout.show');
+//    Route::post('/checkout/{plan}/process', [CheckoutController::class, 'process'])->name('checkout.process');
+//    Route::get('/checkout/success', function() {
+//        return Inertia::render('Checkout/Success');
+//    })->name('checkout.success');
 });
 
 Route::get('/', function () {
