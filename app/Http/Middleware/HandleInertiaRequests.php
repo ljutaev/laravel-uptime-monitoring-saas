@@ -40,6 +40,7 @@ class HandleInertiaRequests extends Middleware
                 'id' => $subscription->id,
                 'plan_name' => $subscription->plan->name,
                 'plan_slug' => $subscription->plan->slug,
+                'plan_check_interval' => $subscription->plan->getFeatureValue('check_interval'), // хвилини
                 'billing_period' => $subscription->billing_period,
                 'price' => $subscription->price,
                 'currency' => $subscription->currency,
@@ -49,14 +50,19 @@ class HandleInertiaRequests extends Middleware
                 'ends_at' => $subscription->ends_at?->toDateTimeString(),
             ] : null;
 
+
+
+
+
             $featureUsage = app(FeatureUsageService::class);
 
             $shared['auth']['limits'] = [
-                'domains' => [
+                'monitors' => [
                     'remaining' => $featureUsage->getRemaining($user, 'domains'),
                     'can_add' => $featureUsage->canUse($user, 'domains', 1),
                     'used' => $featureUsage->getCurrentUsage($user, 'domains'),
-                ]
+                ],
+
             ];
         }
 

@@ -8,6 +8,7 @@ use Inertia\Inertia;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MonitorController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\WebhookController;
 
 
 Route::get('/', function () {
@@ -96,5 +97,8 @@ Route::get('/', function () {
 //});
 //
 //Route::post('/wayforpay/callback', [SubscriptionController::class, 'callback'])->name('wayforpay.callback');
+
+// Webhooks (без auth middleware)
+Route::post('/webhooks/wayforpay', [WebhookController::class, 'wayforpay'])->name('webhooks.wayforpay');
 
 require __DIR__.'/auth.php';

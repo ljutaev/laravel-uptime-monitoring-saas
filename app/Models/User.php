@@ -65,6 +65,7 @@ class User extends Authenticatable
     {
         return $this->hasOne(Subscription::class)
             ->where('status', Subscription::STATUS_ACTIVE)
+            ->with('plan')
             ->latest();
     }
 

@@ -7,11 +7,17 @@ use Inertia\Inertia;
 use App\Models\Monitor;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;
+use App\Services\Subscription\FeatureUsageService;
+use Illuminate\Support\Facades\DB;
 
 class MonitorController extends Controller
 {
 
     use AuthorizesRequests, ValidatesRequests;
+
+    public function __construct(
+        protected FeatureUsageService $featureUsage
+    ) {}
     /**
      * Display a listing of the resource.
      */
@@ -60,10 +66,37 @@ class MonitorController extends Controller
             'notifications_enabled' => 'boolean',
         ]);
 
-        $user->monitors()->create($validated);
+        try {
+            DB::beginTransaction();
 
-        return redirect()->route('monitors.index')
-            ->with('success', 'Successfully created monitor.');
+            if (!$this->featureUsage->canUse($user, 'domains', 1)) {
+                $remaining = $this->featureUsage->getRemaining($user, 'domains');
+                throw new \Exception("You’ve reached your domain limit ({$remaining} remaining). Please upgrade your plan.");
+            }
+
+            $monitor = $user->monitors()->create($validated);
+
+            $this->featureUsage->use($user, 'domains', 1);
+
+            DB::commit();
+
+            return redirect()->route('monitors.show', $monitor)
+                ->with('success', 'Monitor created successfully.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            \Log::error('Monitor creation failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->route('monitors.index')
+                ->with('error', $e->getMessage() ?: 'Failed to create monitor.');
+        }
+
+//        return redirect()->route('monitors.index')
+//            ->with('success', 'Successfully created monitor.');
     }
 
     /**

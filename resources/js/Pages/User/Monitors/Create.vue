@@ -1,6 +1,14 @@
 <script setup>
-import { useForm } from '@inertiajs/vue3';
+import { useForm, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
+
 import AuthLayout from "@/Layouts/AuthLayout.vue";
+
+
+const page = usePage();
+const pageProps = computed(() => page.props);
+
+const currentPlan = computed(() => pageProps.value.auth?.subscription ?? null);
 
 const props = defineProps({
     monitor: {
@@ -8,7 +16,7 @@ const props = defineProps({
         default: () => ({
             name: '',
             url: '',
-            check_interval: 1,
+            check_interval: 5,
             notifications_enabled: true,
         })
     },
@@ -18,12 +26,17 @@ const props = defineProps({
     }
 });
 
+// Якщо користувач створює новий монітор, встановлюємо інтервал за планом
+const defaultCheckInterval = computed(() => {
+    return currentPlan.value?.plan_check_interval || 5;
+});
+
 const isEdit = !!props.monitor.id;
 
 const form = useForm({
     name: props.monitor.name,
     url: props.monitor.url,
-    check_interval: props.monitor.check_interval,
+    check_interval: props.monitor.check_interval || defaultCheckInterval.value,
     notifications_enabled: props.monitor.notifications_enabled,
 });
 
