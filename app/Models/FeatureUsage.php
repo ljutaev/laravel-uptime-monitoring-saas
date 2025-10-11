@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class FeatureUsage extends Model
 {
+    protected $table = 'feature_usage';
     protected $fillable = [
         'user_id',
         'subscription_id',
