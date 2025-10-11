@@ -11,17 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('plan_features', function (Blueprint $table) {
+        Schema::create('plan_prices', function (Blueprint $table) {
             $table->id();
             $table->foreignId('plan_id')->constrained('subscription_plans')->onDelete('cascade');
-            $table->string('slug');
-            $table->string('name');
-            $table->text('description')->nullable();
-            $table->string('value');
-            $table->integer('sort_order')->default(0);
+            $table->enum('billing_period', ['monthly', 'yearly', 'lifetime']);
+            $table->decimal('price', 10, 2);
+            $table->string('currency', 3)->default('USD');
+            $table->decimal('discount_percentage', 5, 2)->default(0);
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
 
-            $table->unique(['plan_id', 'slug']);
+            $table->unique(['plan_id', 'billing_period', 'currency']);
         });
     }
 
@@ -30,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('plan_features');
+        Schema::dropIfExists('plan_prices');
     }
 };

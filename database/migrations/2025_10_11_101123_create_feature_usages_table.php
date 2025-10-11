@@ -11,20 +11,18 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('payments', function (Blueprint $table) {
+        Schema::create('feature_usage', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('subscription_id')->nullable()->constrained()->onDelete('set null');
-            $table->string('payment_gateway');
-            $table->string('transaction_id')->unique();
-            $table->string('status');
-            $table->decimal('amount', 10, 2);
-            $table->string('currency', 3);
-            $table->json('gateway_response')->nullable();
-            $table->timestamp('paid_at')->nullable();
+            $table->string('feature_slug');
+            $table->integer('usage')->default(0);
+            $table->timestamp('period_start');
+            $table->timestamp('period_end');
+            $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->index(['user_id', 'status']);
+            $table->index(['user_id', 'feature_slug', 'period_start']);
         });
     }
 
@@ -33,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('payments');
+        Schema::dropIfExists('feature_usages');
     }
 };

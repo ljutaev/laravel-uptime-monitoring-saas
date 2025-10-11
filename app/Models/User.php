@@ -50,4 +50,54 @@ class User extends Authenticatable
     {
         return $this->hasMany(Monitor::class);
     }
+
+    public function subscriptions()
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function activeSubscription()
+    {
+        return $this->hasOne(Subscription::class)
+            ->where('status', Subscription::STATUS_ACTIVE)
+            ->latest();
+    }
+
+    public function hasActiveSubscription(): bool
+    {
+        return $this->activeSubscription()->exists();
+    }
+
+    public function subscribedToPlan(string $planSlug): bool
+    {
+        return $this->subscriptions()
+            ->where('status', Subscription::STATUS_ACTIVE)
+            ->whereHas('plan', function ($query) use ($planSlug) {
+                $query->where('slug', $planSlug);
+            })
+            ->exists();
+    }
+
+    public function hasFeature(string $featureSlug): bool
+    {
+        $subscription = $this->activeSubscription;
+        if (!$subscription) {
+            return false;
+        }
+        return $subscription->plan->hasFeature($featureSlug);
+    }
+
+    public function getFeatureValue(string $featureSlug)
+    {
+        $subscription = $this->activeSubscription;
+        if (!$subscription) {
+            return null;
+        }
+        return $subscription->plan->getFeatureValue($featureSlug);
+    }
 }
