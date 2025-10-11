@@ -33,8 +33,9 @@ class SubscriptionPlansSeeder extends Seeder
         ]);
 
         // Features для Free
-        PlanFeature::create(['plan_id' => $freePlan->id, 'slug' => 'domains', 'name' => 'Domains', 'value' => '1', 'sort_order' => 1]);
-        PlanFeature::create(['plan_id' => $freePlan->id, 'slug' => 'ssl_monitoring', 'name' => 'SSL Monitoring', 'value' => 'false', 'sort_order' => 3]);
+        PlanFeature::create(['plan_id' => $freePlan->id, 'slug' => 'domains', 'name' => 'Domains', 'value' => '3', 'sort_order' => 1]);
+        PlanFeature::create(['plan_id' => $freePlan->id, 'slug' => 'ssl_monitoring', 'name' => 'SSL Monitoring', 'value' => 'false', 'sort_order' => 2]);
+        PlanFeature::create(['plan_id' => $freePlan->id, 'slug' => 'check_interval', 'name' => 'Check Interval', 'value' => '5', 'sort_order' => 3]);
 
         // ==================== BUSINESS PLAN ====================
         $businessPlan = SubscriptionPlan::create([
@@ -63,7 +64,8 @@ class SubscriptionPlansSeeder extends Seeder
 
         // Features для Business
         PlanFeature::create(['plan_id' => $businessPlan->id, 'slug' => 'domains', 'name' => 'Domains', 'value' => '10', 'sort_order' => 1]);
-        PlanFeature::create(['plan_id' => $businessPlan->id, 'slug' => 'ssl_monitoring', 'name' => 'SSL Monitoring', 'value' => 'true', 'sort_order' => 3]);
+        PlanFeature::create(['plan_id' => $businessPlan->id, 'slug' => 'ssl_monitoring', 'name' => 'SSL Monitoring', 'value' => 'true', 'sort_order' => 2]);
+        PlanFeature::create(['plan_id' => $freePlan->id, 'slug' => 'check_interval', 'name' => 'Check Interval', 'value' => '3', 'sort_order' => 3]);
 
         // ==================== ENTERPRISE PLAN ====================
         $enterprisePlan = SubscriptionPlan::create([
@@ -92,6 +94,7 @@ class SubscriptionPlansSeeder extends Seeder
 
         // Features для Enterprise
         PlanFeature::create(['plan_id' => $enterprisePlan->id, 'slug' => 'domains', 'name' => 'Domains', 'value' => '25', 'sort_order' => 1]);
-        PlanFeature::create(['plan_id' => $enterprisePlan->id, 'slug' => 'ssl_monitoring', 'name' => 'SSL Monitoring', 'value' => 'true', 'sort_order' => 3]);
+        PlanFeature::create(['plan_id' => $enterprisePlan->id, 'slug' => 'ssl_monitoring', 'name' => 'SSL Monitoring', 'value' => 'true', 'sort_order' => 2]);
+        PlanFeature::create(['plan_id' => $freePlan->id, 'slug' => 'check_interval', 'name' => 'Check Interval', 'value' => '1', 'sort_order' => 3]);
     }
 }
