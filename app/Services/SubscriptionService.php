@@ -112,6 +112,42 @@ class SubscriptionService
     }
 
     /**
+     * Зміна плану підписки
+     */
+    public function changePlan(
+        Subscription $subscription,
+        SubscriptionPlan $newPlan,
+        string $billingPeriod = 'monthly',
+        bool $immediate = false
+    ): Subscription {
+        return DB::transaction(function () use ($subscription, $newPlan, $billingPeriod, $immediate) {
+            $planPrice = $newPlan->getPrice($billingPeriod);
+
+            if ($immediate) {
+                $subscription->update([
+                    'plan_id' => $newPlan->id,
+                    'billing_period' => $billingPeriod,
+                    'price' => $planPrice ? $planPrice->getFinalPrice() : 0,
+                    'currency' => $planPrice->currency ?? 'USD',
+                    'ends_at' => $this->calculateEndDate($billingPeriod, now()),
+                ]);
+            } else {
+                $subscription->update([
+                    'metadata' => array_merge($subscription->metadata ?? [], [
+                        'scheduled_plan_change' => [
+                            'new_plan_id' => $newPlan->id,
+                            'billing_period' => $billingPeriod,
+                            'change_at' => $subscription->ends_at,
+                        ]
+                    ])
+                ]);
+            }
+
+            return $subscription->fresh();
+        });
+    }
+
+    /**
      * Розрахунок дати закінчення
      */
     protected function calculateEndDate(string $billingPeriod, ?Carbon $startDate = null): ?Carbon
@@ -124,5 +160,54 @@ class SubscriptionService
             'lifetime' => null,
             default => $startDate->copy()->addMonth(),
         };
+    }
+
+    /**
+     * Перевірка та оновлення прострочених підписок
+     */
+    public function checkExpiredSubscriptions(): int
+    {
+        $expiredCount = 0;
+
+        Subscription::where('status', Subscription::STATUS_ACTIVE)
+            ->where('ends_at', '<', now())
+            ->chunk(100, function ($subscriptions) use (&$expiredCount) {
+                foreach ($subscriptions as $subscription) {
+                    $subscription->expire();
+                    $expiredCount++;
+                }
+            });
+
+        return $expiredCount;
+    }
+
+    /**
+     * Отримання статистики використання
+     */
+    public function getSubscriptionStats(User $user): array
+    {
+        $subscription = $user->activeSubscription;
+
+        if (!$subscription) {
+            return [
+                'has_subscription' => false,
+            ];
+        }
+
+        $plan = $subscription->plan;
+        $featureUsage = app(FeatureUsageService::class);
+        $usage = $featureUsage->getUsageStats($user);
+
+        return [
+            'has_subscription' => true,
+            'plan' => $plan,
+            'subscription' => $subscription,
+            'usage' => $usage,
+            'days_until_renewal' => $subscription->ends_at
+                ? now()->diffInDays($subscription->ends_at)
+                : null,
+            'on_trial' => $subscription->onTrial(),
+            'on_grace_period' => $subscription->onGracePeriod(),
+        ];
     }
 }
