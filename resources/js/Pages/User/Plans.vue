@@ -66,7 +66,7 @@ const billingCycle = ref("month"); // "month" | "year"
                     </div>
 
                     <span class="text-theme-xl font-semibold text-gray-400 line-through" v-if="billingCycle === 'year' && plan.monthly_price != 0">
-                        {{billingCycle === 'month' ?  (plan.monthly_price * 12 / 12) : Math.round(plan.monthly_price * 12) }} {{ plan.currency }}
+                        {{billingCycle === 'month' ?  plan.monthly_price  : plan.monthly_price * 12 }} {{ plan.currency }}
                     </span>
                 </div>
 
@@ -79,23 +79,47 @@ const billingCycle = ref("month"); // "month" | "year"
                 <div class="my-6 h-px w-full bg-gray-200 dark:bg-gray-800"></div>
 
                 <div class="mb-8 space-y-3">
-                    <p class="flex items-center gap-3 text-sm"
+                    <p
+                        v-for="(feature, index) in plan.features"
+                        :key="index"
+                        class="flex items-center gap-3 text-sm"
                         :class="plan.active ? 'text-white' : 'text-gray-500 dark:text-gray-400'"
-                       v-for="(feature, index) in plan.features"
-                       :key="index"
                     >
-                        <svg v-if="feature.available" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M13.4017 4.35986L6.12166 11.6399L2.59833 8.11657" stroke="#12B76A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-                        </svg>
-                        <span v-else>❌</span>
-                        {{ feature.label }}
+                        <template v-if="feature.label.toLowerCase() === 'domains'">
+                            <span>🌐</span> {{ feature.value }} Monitors
+                        </template>
+
+                        <template v-else-if="feature.label.toLowerCase() === 'check interval'">
+                            <span>⏱️</span> {{ feature.value }} {{ feature.value == '1' ? 'minute' : "minutes"}} check Interval
+                        </template>
+
+                        <template v-else>
+                            <svg
+                                v-if="feature.available"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                            >
+                                <path
+                                    d="M13.4017 4.35986L6.12166 11.6399L2.59833 8.11657"
+                                    stroke="#12B76A"
+                                    stroke-width="1.8"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                ></path>
+                            </svg>
+                            <span v-else>❌</span>
+                            {{ feature.label }}
+                        </template>
                     </p>
                 </div>
 
                 <a
                     :href="route('checkout.show', { plan: 1, interval: billingCycle })"
-                    class="flex w-full items-center justify-center rounded-lg bg-gray-800 p-3.5 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-500 dark:bg-white/10"
-                    :class="plan.active ? 'bg-blue-800 hover:bg-gray-900 dark:bg-white/10' : ''"
+                    class="flex w-full items-center justify-center rounded-lg p-3.5 text-sm font-medium text-white shadow-theme-xs transition-colors  dark:bg-white/10"
+                    :class="plan.active ? 'bg-blue-800 hover:bg-white hover:text-blue-500 dark:bg-white/10' : 'bg-gray-800 hover:bg-blue-500'"
                 >
                     Choose Starter
                 </a>

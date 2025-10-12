@@ -9,6 +9,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MonitorController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\WebhookController;
+use App\Http\Controllers\PlanController;
 
 
 Route::get('/', function () {
@@ -27,54 +28,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::get('/dashboard/plans', function () {
-        $plans = [
-            [
-                'name' => 'FREE',
-                'monthly_price' => 0,
-                'yearly_price' => 0,
-                'currency' => 'USD',
-                'description' => 'Forever free',
-                'features' => [
-                    ['label' => '1 monitor', 'available' => true],
-                    ['label' => '5 minutes check interval', 'available' => true],
-                    ['label' => 'SSL certificate monitoring', 'available' => false],
-                ],
-                'button' => 'FREE',
-                'active' => false,
-            ],
-            [
-                'name' => 'BUSINESS',
-                'monthly_price' => 9.99,
-                'yearly_price' => 99.99, // умовно 2 місяці безкоштовно
-                'currency' => 'USD',
-                'description' => 'For small teams',
-                'features' => [
-                    ['label' => '10 monitors', 'available' => true],
-                    ['label' => '3 minutes check interval', 'available' => true],
-                    ['label' => 'SSL certificate monitoring', 'available' => true],
-                ],
-                'button' => 'SUBSCRIBE',
-                'active' => false,
-            ],
-            [
-                'name' => 'ENTERPRISE',
-                'monthly_price' => 99.99,
-                'yearly_price' => 999.99,
-                'currency' => 'USD',
-                'description' => 'For large organizations',
-                'features' => [
-                    ['label' => '25 monitors', 'available' => true],
-                    ['label' => '1 minute check interval', 'available' => true],
-                    ['label' => 'SSL certificate monitoring', 'available' => true],
-                ],
-                'button' => 'ACTIVE',
-                'active' => true,
-            ],
-        ];
-
-        return Inertia::render('User/Plans', ['plans' => $plans]);
-    })->name('user.plans');
+    Route::get('/dashboard/plans', [PlanController::class, 'index'])->name('user.plans');
 
     Route::resource('/dashboard/monitors', MonitorController::class);
 
