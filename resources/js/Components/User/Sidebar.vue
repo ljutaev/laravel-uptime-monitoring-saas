@@ -1,6 +1,7 @@
 <script setup>
 import { usePage, Link } from '@inertiajs/vue3'
 import { computed } from 'vue'
+import SidebarUses from '@/Components/User/SidebarUses.vue'
 
 const page = usePage()
 const user = computed(() => page.props.auth?.user ?? {})
@@ -135,14 +136,7 @@ const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
         </div>
 
         <!-- uses-->
-        <div class="py-4 mt-auto">
-            <div class="mb-1">
-                5 of 25 monitors used.
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                <div class="bg-blue-600 h-2.5 rounded-full" style="width: 45%"></div>
-            </div>
-        </div>
+        <SidebarUses />
 
         <!-- profile-->
         <div class="p-4 gap-2 mt-2 bg-gray-100 -ml-4 -mr-5 flex items-center text-gray-700 dark:text-gray-400">
