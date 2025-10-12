@@ -4,37 +4,36 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use App\Models\SubscriptionPlan;
+use App\Services\WayForPayService;
 
 class CheckoutController extends Controller
 {
-    public function show(Request $request)
+    public function __construct(
+        private WayForPayService $wayForPayService
+    ) {}
+
+    public function show(SubscriptionPlan $plan, Request $request)
     {
         $interval = $request->query('interval', 'month'); // month або year
 
         if (!in_array($interval, ['month', 'year'])) {
-            return redirect()->route('plans.index');
+            return redirect()->route('user.plans');
         }
 
         $user = auth()->user();
 
-        $plan = new \stdClass();
-
-        $plan->id = 1;
-        $plan->name = 'Pro';
-        $plan->slug = 'pro';
-        $plan->description = 'Professional plan';
-        $plan->price_monthly = 15.00;
-        $plan->price_yearly = 150.00;
-        $plan->currency = 'USD';
-        $plan->features = json_encode([
-            'Up to 10 monitors',
-            '5 minutes check interval',
-            'Email and SMS alerts',
-            'SSL certificate monitoring',
-        ]);
+        // Перевіряємо чи користувач вже має активну підписку
+        $currentSubscription = $user->subscription;
 
         // Розраховуємо ціну
         $price = $interval === 'year' ? $plan->price_yearly : $plan->price_monthly;
+
+        // Якщо Free план
+        if ($price == 0) {
+            return redirect()->route('user.plans')
+                ->with('error', 'Free план не потребує оплати');
+        }
 
         return Inertia::render('Checkout/Show', [
             'plan' => [
@@ -51,7 +50,37 @@ class CheckoutController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
             ],
-            'currentSubscription' => null,
+            'currentSubscription' => $currentSubscription ? [
+                'plan' => $currentSubscription->plan->name,
+                'ends_at' => $currentSubscription->ends_at->format('Y-m-d'),
+            ] : null,
+        ]);
+    }
+
+    public function process(Plan $plan, Request $request)
+    {
+        $validated = $request->validate([
+            'interval' => 'required|in:month,year',
+        ]);
+
+        $user = auth()->user();
+        $interval = $validated['interval'];
+        $price = $interval === 'year' ? $plan->price_yearly : $plan->price_monthly;
+
+        if ($price == 0) {
+            return back()->withErrors(['error' => 'Free план не потребує оплати']);
+        }
+
+        // Створюємо дані для WayForPay
+        $paymentData = $this->wayForPayService->createSubscriptionPayment(
+            $user,
+            $plan,
+            $interval
+        );
+
+        // Повертаємо форму для WayForPay
+        return Inertia::render('Checkout/Payment', [
+            'paymentData' => $paymentData,
         ]);
     }
 }

@@ -33,10 +33,10 @@ Route::middleware('auth')->group(function () {
     Route::resource('/dashboard/monitors', MonitorController::class);
 
     Route::get('/checkout/{plan}', [CheckoutController::class, 'show'])->name('checkout.show');
-//    Route::post('/checkout/{plan}/process', [CheckoutController::class, 'process'])->name('checkout.process');
-//    Route::get('/checkout/success', function() {
-//        return Inertia::render('Checkout/Success');
-//    })->name('checkout.success');
+    Route::post('/checkout/{plan}/process', [CheckoutController::class, 'process'])->name('checkout.process');
+    Route::get('/checkout/success', function() {
+        return Inertia::render('Checkout/Success');
+    })->name('checkout.success');
 });
 
 Route::get('/', function () {
