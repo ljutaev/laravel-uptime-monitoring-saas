@@ -117,7 +117,7 @@ const billingCycle = ref("month"); // "month" | "year"
                 </div>
 
                 <a
-                    :href="route('checkout.show', { plan: 1, interval: billingCycle })"
+                    :href="route('checkout.show', { plan: plan.id, interval: billingCycle })"
                     class="flex w-full items-center justify-center rounded-lg p-3.5 text-sm font-medium text-white shadow-theme-xs transition-colors  dark:bg-white/10"
                     :class="plan.active ? 'bg-blue-800 hover:bg-white hover:text-blue-500 dark:bg-white/10' : 'bg-gray-800 hover:bg-blue-500'"
                 >

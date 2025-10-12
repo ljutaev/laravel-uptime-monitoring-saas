@@ -2,38 +2,35 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SubscriptionPlan;
+use App\Services\Payment\PaymentGatewayManager;
+use App\Services\Subscription\SubscriptionService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\SubscriptionPlan;
-use App\Services\WayForPayService;
 
 class CheckoutController extends Controller
 {
     public function __construct(
-        private WayForPayService $wayForPayService
+        private SubscriptionService $subscriptionService,
+        private PaymentGatewayManager $gatewayManager
     ) {}
 
     public function show(SubscriptionPlan $plan, Request $request)
     {
-        $interval = $request->query('interval', 'month'); // month або year
-
+        $interval = $request->query('interval', 'month'); // month | year
         if (!in_array($interval, ['month', 'year'])) {
             return redirect()->route('user.plans');
         }
 
-        $user = auth()->user();
+        $billingPeriod = $interval === 'year' ? 'yearly' : 'monthly';
+        $price = optional($plan->getPrice($billingPeriod))->getFinalPrice() ?? 0;
+        $currency = optional($plan->getPrice($billingPeriod))->currency ?? 'USD';
 
-        // Перевіряємо чи користувач вже має активну підписку
-        $currentSubscription = $user->subscription;
-
-        // Розраховуємо ціну
-        $price = $interval === 'year' ? $plan->price_yearly : $plan->price_monthly;
-
-        // Якщо Free план
-        if ($price == 0) {
-            return redirect()->route('user.plans')
-                ->with('error', 'Free план не потребує оплати');
+        if ($price <= 0) {
+            return redirect()->route('user.plans')->with('error', 'Free план не потребує оплати');
         }
+
+        $user = $request->user();
 
         return Inertia::render('Checkout/Show', [
             'plan' => [
@@ -42,45 +39,44 @@ class CheckoutController extends Controller
                 'slug' => $plan->slug,
                 'description' => $plan->description,
                 'price' => $price,
-                'currency' => $plan->currency,
-                'interval' => $interval,
-                'features' => json_decode($plan->features),
+                'currency' => $currency,
+                'interval' => $interval, // month|year
+                'features' => $plan->features->map(fn($f) => $f->only(['name','value'])),
             ],
             'user' => [
                 'name' => $user->name,
                 'email' => $user->email,
             ],
-            'currentSubscription' => $currentSubscription ? [
-                'plan' => $currentSubscription->plan->name,
-                'ends_at' => $currentSubscription->ends_at->format('Y-m-d'),
-            ] : null,
+            'paymentMethods' => $this->gatewayManager->getAvailableGateways(), // ['wayforpay']
         ]);
     }
 
-    public function process(Plan $plan, Request $request)
+    public function process(SubscriptionPlan $plan, Request $request)
     {
         $validated = $request->validate([
             'interval' => 'required|in:month,year',
+            'payment_method' => 'required|string', // e.g. 'wayforpay'
         ]);
 
-        $user = auth()->user();
-        $interval = $validated['interval'];
-        $price = $interval === 'year' ? $plan->price_yearly : $plan->price_monthly;
+        $billingPeriod = $validated['interval'] === 'year' ? 'yearly' : 'monthly';
+        $paymentMethod = $validated['payment_method'];
 
-        if ($price == 0) {
-            return back()->withErrors(['error' => 'Free план не потребує оплати']);
-        }
-
-        // Створюємо дані для WayForPay
-        $paymentData = $this->wayForPayService->createSubscriptionPayment(
-            $user,
+        $result = $this->subscriptionService->subscribe(
+            $request->user(),
             $plan,
-            $interval
+            $billingPeriod,
+            $paymentMethod, // 'wayforpay'
+            ['currency' => optional($plan->getPrice($billingPeriod))->currency ?? 'USD']
         );
 
-        // Повертаємо форму для WayForPay
+        if (!$result['requires_payment']) {
+            return redirect()->route('checkout.success');
+        }
+
+        // Відправляємо на сторінку автопоста (генерично під будь-який gateway)
         return Inertia::render('Checkout/Payment', [
-            'paymentData' => $paymentData,
+            'actionUrl' => $result['action_url'],
+            'formData'  => $result['form_data'],
         ]);
     }
 }

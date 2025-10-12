@@ -47,25 +47,36 @@ class WayForPayGateway implements PaymentGatewayInterface
             ucfirst($subscription->billing_period)
         );
 
+        // ВАЖЛИВО: Всі суми мають бути у форматі з 2 знаками після коми
+        $formattedAmount = number_format($amount, 2, '.', '');
+
         $paymentData = [
             'merchantAccount' => $this->merchantAccount,
             'merchantDomainName' => $this->merchantDomainName,
             'orderReference' => $orderReference,
             'orderDate' => $orderDate,
-            'amount' => $amount,
+            'amount' => $formattedAmount,
             'currency' => $currency,
             'productName' => [$productName],
             'productCount' => [1],
-            'productPrice' => [$amount],
+            'productPrice' => [$formattedAmount],
             'clientEmail' => $user->email,
             'clientFirstName' => $user->name ?? 'User',
             'clientLastName' => $user->name ?? 'User',
-            'clientPhone' => $data['phone'] ?? '',
-            'returnUrl' => route('subscription.payment.return'),
+            'clientPhone' => $data['phone'] ?? '+380501665079',
+            'returnUrl' => route('checkout.success'),
             'serviceUrl' => route('webhooks.wayforpay'),
         ];
 
+        // Генеруємо підпис
         $paymentData['merchantSignature'] = $this->generateSignature($paymentData);
+
+        // Логуємо для дебагу
+        Log::info('WayForPay Payment Created', [
+            'orderReference' => $orderReference,
+            'amount' => $formattedAmount,
+            'signature_string' => $this->getSignatureString($paymentData),
+        ]);
 
         return [
             'success' => true,
@@ -77,10 +88,14 @@ class WayForPayGateway implements PaymentGatewayInterface
 
     public function handleWebhook(Request $request): array
     {
-        Log::info('WayForPay Webhook', $request->all());
+        Log::info('WayForPay Webhook Received', $request->all());
 
         if (!$this->verifyWebhookSignature($request)) {
-            Log::error('Invalid signature');
+            Log::error('WayForPay: Invalid webhook signature', [
+                'received_signature' => $request->input('merchantSignature'),
+                'expected_signature' => $this->generateWebhookSignature($request),
+                'data' => $request->all(),
+            ]);
             return ['status' => 'error', 'message' => 'Invalid signature'];
         }
 
@@ -100,6 +115,11 @@ class WayForPayGateway implements PaymentGatewayInterface
             $this->handleSuccessfulPayment($payment);
         } else {
             $payment->markAsFailed();
+            Log::warning('Payment declined', [
+                'orderReference' => $orderReference,
+                'reason' => $request->input('reason'),
+                'reasonCode' => $request->input('reasonCode'),
+            ]);
         }
 
         return ['orderReference' => $orderReference, 'status' => 'accept', 'time' => time()];
@@ -153,21 +173,23 @@ class WayForPayGateway implements PaymentGatewayInterface
     public function verifyWebhookSignature(Request $request): bool
     {
         $merchantSignature = $request->input('merchantSignature');
-        if (!$merchantSignature) return false;
+        if (!$merchantSignature) {
+            Log::error('WayForPay: merchantSignature not provided in webhook');
+            return false;
+        }
 
-        $data = [
-            'merchantAccount' => $request->input('merchantAccount'),
-            'orderReference' => $request->input('orderReference'),
-            'amount' => $request->input('amount'),
-            'currency' => $request->input('currency'),
-            'authCode' => $request->input('authCode'),
-            'cardPan' => $request->input('cardPan'),
-            'transactionStatus' => $request->input('transactionStatus'),
-            'reasonCode' => $request->input('reasonCode'),
-        ];
+        $generatedSignature = $this->generateWebhookSignature($request);
 
-        $generatedSignature = $this->generateWebhookSignature($data);
-        return hash_equals($generatedSignature, $merchantSignature);
+        $isValid = hash_equals($generatedSignature, $merchantSignature);
+
+        if (!$isValid) {
+            Log::error('Signature mismatch', [
+                'received' => $merchantSignature,
+                'generated' => $generatedSignature,
+            ]);
+        }
+
+        return $isValid;
     }
 
     public function getPaymentUrl(array $paymentData): string
@@ -175,8 +197,13 @@ class WayForPayGateway implements PaymentGatewayInterface
         return 'https://secure.wayforpay.com/pay';
     }
 
+    /**
+     * Генерація підпису для створення платежу
+     * Згідно документації: https://wiki.wayforpay.com/en/view/852102
+     */
     protected function generateSignature(array $data): string
     {
+        // Порядок полів КРИТИЧНО ВАЖЛИВИЙ!
         $signatureString = implode(';', [
             $data['merchantAccount'],
             $data['merchantDomainName'],
@@ -189,22 +216,53 @@ class WayForPayGateway implements PaymentGatewayInterface
             implode(';', $data['productPrice']),
         ]);
 
-        return hash_hmac('md5', $signatureString, $this->merchantSecretKey);
-    }
-
-    protected function generateWebhookSignature(array $data): string
-    {
-        $signatureString = implode(';', [
-            $data['merchantAccount'],
-            $data['orderReference'],
-            $data['amount'],
-            $data['currency'],
-            $data['authCode'],
-            $data['cardPan'],
-            $data['transactionStatus'],
-            $data['reasonCode'],
+        Log::debug('Signature string for payment', [
+            'string' => $signatureString,
+            'secret_key_length' => strlen($this->merchantSecretKey),
         ]);
 
         return hash_hmac('md5', $signatureString, $this->merchantSecretKey);
+    }
+
+    /**
+     * Генерація підпису для webhook
+     */
+    protected function generateWebhookSignature($request): string
+    {
+        // Порядок полів для webhook (з документації)
+        $signatureString = implode(';', [
+            $request->input('merchantAccount'),
+            $request->input('orderReference'),
+            $request->input('amount'),
+            $request->input('currency'),
+            $request->input('authCode'),
+            $request->input('cardPan'),
+            $request->input('transactionStatus'),
+            $request->input('reasonCode'),
+        ]);
+
+        Log::debug('Webhook signature string', [
+            'string' => $signatureString,
+        ]);
+
+        return hash_hmac('md5', $signatureString, $this->merchantSecretKey);
+    }
+
+    /**
+     * Helper для дебагу - показує signature string
+     */
+    private function getSignatureString(array $data): string
+    {
+        return implode(';', [
+            $data['merchantAccount'],
+            $data['merchantDomainName'],
+            $data['orderReference'],
+            $data['orderDate'],
+            $data['amount'],
+            $data['currency'],
+            implode(';', $data['productName']),
+            implode(';', $data['productCount']),
+            implode(';', $data['productPrice']),
+        ]);
     }
 }

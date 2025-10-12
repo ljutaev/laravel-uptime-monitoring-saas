@@ -1,22 +1,21 @@
 <script setup>
-import { ref, computed } from 'vue';
-import { useForm } from '@inertiajs/vue3';
-import AuthLayout from "@/Layouts/AuthLayout.vue";
+import { ref } from 'vue';
+import { Head, useForm } from '@inertiajs/vue3';
+import AuthLayout from '@/Layouts/AuthLayout.vue';
 
 const props = defineProps({
     plan: Object,
     user: Object,
-    currentSubscription: Object,
+    paymentMethods: Array, // ['wayforpay', ...]
 });
 
 const form = useForm({
-    interval: props.plan.interval,
+    interval: props.plan.interval,       // 'month'|'year'
+    payment_method: props.paymentMethods?.[0] ?? 'wayforpay',
 });
 
 const proceedToPayment = () => {
-    form.post(route('checkout.process', props.plan.id), {
-        preserveScroll: true,
-    });
+    form.post(route('checkout.process', props.plan.id), { preserveScroll: true });
 };
 </script>
 
@@ -42,23 +41,25 @@ const proceedToPayment = () => {
                 <!-- Left side - Payment Method -->
                 <div class="lg:col-span-2 space-y-6">
                     <!-- Payment Method -->
+                    <!-- Payment Method -->
                     <div class="bg-white dark:bg-white/[0.03] rounded-xl border border-gray-200 dark:border-gray-800 p-6">
                         <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Payment method</h3>
 
                         <div class="space-y-3">
-                            <!-- WayForPay -->
-                            <label class="flex items-center justify-between p-4 border-2 border-blue-500 rounded-lg cursor-pointer">
+                            <label
+                                v-for="method in paymentMethods"
+                                :key="method"
+                                class="flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer"
+                                :class="form.payment_method === method ? 'border-blue-500' : 'border-gray-200'"
+                                @click="form.payment_method = method"
+                            >
                                 <div class="flex items-center gap-3">
-                                    <input type="radio" name="payment" value="wayforpay" checked class="w-5 h-5 text-blue-600">
+                                    <input type="radio" name="payment" :value="method" class="w-5 h-5 text-blue-600" v-model="form.payment_method" />
                                     <div class="flex items-center gap-2">
-                                        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none">
-                                            <rect width="24" height="24" rx="4" fill="#4F46E5"/>
-                                            <text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold">W4P</text>
-                                        </svg>
-                                        <span class="font-medium text-gray-900 dark:text-white">WayForPay</span>
+                                        <span class="font-medium text-gray-900 dark:text-white">{{ method === 'wayforpay' ? 'WayForPay' : method }}</span>
                                     </div>
                                 </div>
-                                <span class="text-sm text-gray-500 dark:text-gray-400">Карткою</span>
+                                <span class="text-sm text-gray-500 dark:text-gray-400">Card</span>
                             </label>
                         </div>
                     </div>

@@ -18,6 +18,9 @@ class WebhookController extends Controller
     public function wayforpay(Request $request)
     {
         try {
+
+            Log::info('Received WayForPay webhook', $request->all());
+
             $gateway = $this->gatewayManager->gateway('wayforpay');
             $result = $gateway->handleWebhook($request);
 
