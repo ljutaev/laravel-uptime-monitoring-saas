@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use App\Services\Subscription\FeatureUsageService;
+use Illuminate\Support\Str;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -54,6 +55,7 @@ class HandleInertiaRequests extends Middleware
                     ],
                 ] : null,
             ],
+            'breadcrumbs' => $request->route()?->getName() ? explode('.', Str::ucfirst( $request->route()?->getName())) : null,
         ]);
     }
 }
