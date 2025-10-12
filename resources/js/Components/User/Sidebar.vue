@@ -1,5 +1,29 @@
 <script setup>
-import {Link} from "@inertiajs/vue3";
+import { usePage, Link } from '@inertiajs/vue3'
+import { computed } from 'vue'
+
+const page = usePage()
+const user = computed(() => page.props.auth?.user ?? {})
+const subscription = computed(() => page.props.auth?.subscription ?? null)
+
+// 🧩 Ім'я користувача
+const userName = computed(() => user.value.name || 'User')
+
+// 💬 Назва тарифного плану
+const planName = computed(() => subscription.value?.plan_name || 'Free Plan')
+
+// 🧑‍🎨 Аватар або fallback
+const avatarUrl = computed(() => {
+    // якщо користувач має аватар (наприклад, поле avatar або photo)
+    if (user.value.avatar_url) return user.value.avatar_url
+
+    // або генеруємо Google-стиль через API DiceBear
+    const firstLetter = encodeURIComponent(userName.value.charAt(0).toUpperCase())
+    return `https://api.dicebear.com/9.x/initials/svg?seed=${firstLetter}&backgroundType=gradientLinear&fontWeight=700`
+})
+
+// 🔠 fallback літера (на випадок якщо не хочемо зовнішні API)
+const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
 </script>
 
 <template>
@@ -123,14 +147,25 @@ import {Link} from "@inertiajs/vue3";
         <!-- profile-->
         <div class="p-4 gap-2 mt-2 bg-gray-100 -ml-4 -mr-5 flex items-center text-gray-700 dark:text-gray-400">
             <a href="">
-                <img class="w-10 rounded-full" src="https://demo.tailadmin.com/src/images/user/owner.jpg" alt="User">
+                <img
+                    v-if="avatarUrl"
+                    :src="avatarUrl"
+                    alt="User avatar"
+                    class="w-10 h-10 rounded-full object-cover"
+                >
+                <div
+                    v-else
+                    class="w-10 h-10 flex items-center justify-center rounded-full bg-blue-500 text-white font-semibold uppercase"
+                >
+                    {{ userInitial }}
+                </div>
             </a>
             <div>
                 <h4 class="text-center text-sm font-semibold text-gray-800 xl:text-left dark:text-white/90">
-                    Musharof Chowdhury
+                    {{ userName }}
                 </h4>
                 <p class="text-xs leading-normal text-gray-500 dark:text-gray-400">
-                    Free Plan
+                    {{ planName }} Package
                 </p>
             </div>
         </div>
