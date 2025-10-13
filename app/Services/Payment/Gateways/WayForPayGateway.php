@@ -21,6 +21,9 @@ class WayForPayGateway implements PaymentGatewayInterface
         $this->merchantDomainName = config('services.wayforpay.domain');
     }
 
+    /**
+     * Створення платежу
+     */
     public function createPayment(Subscription $subscription, array $data = []): array
     {
         $user = $subscription->user;
@@ -28,64 +31,65 @@ class WayForPayGateway implements PaymentGatewayInterface
 
         $orderReference = 'SUB_' . $subscription->id . '_' . time();
         $orderDate = time();
-        $amount = $subscription->price;
-        $currency = $subscription->currency;
+        $amount = number_format($subscription->price, 2, '.', '');
+        $currency = strtoupper($subscription->currency ?? 'USD');
 
+        // Зберігаємо платіж
         $payment = Payment::create([
-            'user_id' => $user->id,
+            'user_id'         => $user->id,
             'subscription_id' => $subscription->id,
             'payment_gateway' => 'wayforpay',
-            'transaction_id' => $orderReference,
-            'status' => Payment::STATUS_PENDING,
-            'amount' => $amount,
-            'currency' => $currency,
+            'transaction_id'  => $orderReference,
+            'status'          => Payment::STATUS_PENDING,
+            'amount'          => $amount,
+            'currency'        => $currency,
         ]);
 
-        $productName = sprintf(
-            '%s - %s',
-            $plan->name,
-            ucfirst($subscription->billing_period)
-        );
-
-        // ВАЖЛИВО: Всі суми мають бути у форматі з 2 знаками після коми
-        $formattedAmount = number_format($amount, 2, '.', '');
+        // Назва товару/підписки
+        $productName = sprintf('%s - %s', $plan->name, ucfirst($subscription->billing_period));
 
         $paymentData = [
-            'merchantAccount' => $this->merchantAccount,
-            'merchantDomainName' => $this->merchantDomainName,
-            'orderReference' => $orderReference,
-            'orderDate' => $orderDate,
-            'amount' => $formattedAmount,
-            'currency' => $currency,
-            'productName' => [$productName],
-            'productCount' => [1],
-            'productPrice' => [$formattedAmount],
-            'clientEmail' => $user->email,
-            'clientFirstName' => $user->name ?? 'User',
-            'clientLastName' => $user->name ?? 'User',
-            'clientPhone' => $data['phone'] ?? '+380501665079',
-            'returnUrl' => route('checkout.success'),
-            'serviceUrl' => route('webhooks.wayforpay'),
+            'merchantAccount'     => $this->merchantAccount,
+            'merchantDomainName'  => $this->merchantDomainName,
+            'orderReference'      => $orderReference,
+            'orderDate'           => $orderDate,
+            'amount'              => $amount,
+            'currency'            => $currency, // WayForPay підтримує лише UAH
+            'productName'         => [$productName],
+            'productCount'        => [1],
+            'productPrice'        => [$amount],
+            'clientEmail'         => $user->email,
+            'clientFirstName'     => $user->first_name ?? $user->name ?? 'User',
+            'clientLastName'      => $user->last_name ?? $user->name ?? 'User',
+            'merchantAuthType'    => 'SimpleSignature',
+            'clientPhone'         => $data['phone'] ?? '+380501665079',
+            'returnUrl'           => route('checkout.success'),
+            'serviceUrl'          => route('webhooks.wayforpay'),
+            'defaultPaymentSystem' => 'card',
         ];
 
         // Генеруємо підпис
         $paymentData['merchantSignature'] = $this->generateSignature($paymentData);
 
-        // Логуємо для дебагу
+        // Логування
         Log::info('WayForPay Payment Created', [
-            'orderReference' => $orderReference,
-            'amount' => $formattedAmount,
+            'orderReference'   => $orderReference,
+            'amount'           => $amount,
             'signature_string' => $this->getSignatureString($paymentData),
+            'signature'        => $paymentData['merchantSignature'],
         ]);
 
         return [
-            'success' => true,
-            'payment' => $payment,
-            'form_data' => $paymentData,
-            'action_url' => 'https://secure.wayforpay.com/pay',
+            'success'     => true,
+            'payment'     => $payment,
+            'form_data'   => $paymentData,
+            'action_url'  => 'https://secure.wayforpay.com/pay',
         ];
     }
 
+    /**
+     * Обробка webhook від WayForPay
+     */
     public function handleWebhook(Request $request): array
     {
         Log::info('WayForPay Webhook Received', $request->all());
@@ -94,12 +98,11 @@ class WayForPayGateway implements PaymentGatewayInterface
             Log::error('WayForPay: Invalid webhook signature', [
                 'received_signature' => $request->input('merchantSignature'),
                 'expected_signature' => $this->generateWebhookSignature($request),
-                'data' => $request->all(),
             ]);
             return ['status' => 'error', 'message' => 'Invalid signature'];
         }
 
-        $orderReference = $request->input('orderReference');
+        $orderReference    = $request->input('orderReference');
         $transactionStatus = $request->input('transactionStatus');
 
         $payment = Payment::where('transaction_id', $orderReference)->first();
@@ -117,15 +120,22 @@ class WayForPayGateway implements PaymentGatewayInterface
             $payment->markAsFailed();
             Log::warning('Payment declined', [
                 'orderReference' => $orderReference,
-                'reason' => $request->input('reason'),
-                'reasonCode' => $request->input('reasonCode'),
+                'reason'         => $request->input('reason'),
+                'reasonCode'     => $request->input('reasonCode'),
             ]);
         }
 
-        return ['orderReference' => $orderReference, 'status' => 'accept', 'time' => time()];
+        return [
+            'orderReference' => $orderReference,
+            'status'         => 'accept',
+            'time'           => now()->timestamp,
+        ];
     }
 
-    protected function handleSuccessfulPayment(Payment $payment)
+    /**
+     * Обробка успішної оплати
+     */
+    protected function handleSuccessfulPayment(Payment $payment): void
     {
         $payment->markAsCompleted();
         $subscription = $payment->subscription;
@@ -135,7 +145,7 @@ class WayForPayGateway implements PaymentGatewayInterface
                 $subscription->activate();
                 $subscription->update([
                     'starts_at' => now(),
-                    'ends_at' => $this->calculateEndDate($subscription),
+                    'ends_at'   => $this->calculateEndDate($subscription),
                 ]);
             } else {
                 $subscription->renew();
@@ -143,7 +153,7 @@ class WayForPayGateway implements PaymentGatewayInterface
         }
 
         Log::info('Payment successful', [
-            'payment_id' => $payment->id,
+            'payment_id'      => $payment->id,
             'subscription_id' => $subscription->id ?? null,
         ]);
     }
@@ -151,10 +161,10 @@ class WayForPayGateway implements PaymentGatewayInterface
     protected function calculateEndDate($subscription)
     {
         return match ($subscription->billing_period) {
-            'monthly' => now()->addMonth(),
-            'yearly' => now()->addYear(),
+            'monthly'  => now()->addMonth(),
+            'yearly'   => now()->addYear(),
             'lifetime' => null,
-            default => now()->addMonth(),
+            default    => now()->addMonth(),
         };
     }
 
@@ -170,21 +180,23 @@ class WayForPayGateway implements PaymentGatewayInterface
         return $payment ? $payment->status : Payment::STATUS_PENDING;
     }
 
+    /**
+     * Перевірка підпису webhook
+     */
     public function verifyWebhookSignature(Request $request): bool
     {
-        $merchantSignature = $request->input('merchantSignature');
-        if (!$merchantSignature) {
-            Log::error('WayForPay: merchantSignature not provided in webhook');
+        $receivedSignature = $request->input('merchantSignature');
+        if (!$receivedSignature) {
+            Log::error('WayForPay: merchantSignature missing in webhook');
             return false;
         }
 
         $generatedSignature = $this->generateWebhookSignature($request);
-
-        $isValid = hash_equals($generatedSignature, $merchantSignature);
+        $isValid = hash_equals($generatedSignature, $receivedSignature);
 
         if (!$isValid) {
             Log::error('Signature mismatch', [
-                'received' => $merchantSignature,
+                'received'  => $receivedSignature,
                 'generated' => $generatedSignature,
             ]);
         }
@@ -198,12 +210,11 @@ class WayForPayGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Генерація підпису для створення платежу
-     * Згідно документації: https://wiki.wayforpay.com/en/view/852102
+     * Генерація підпису для платежу
+     * https://wiki.wayforpay.com/en/view/852102
      */
     protected function generateSignature(array $data): string
     {
-        // Порядок полів КРИТИЧНО ВАЖЛИВИЙ!
         $signatureString = implode(';', [
             $data['merchantAccount'],
             $data['merchantDomainName'],
@@ -216,20 +227,17 @@ class WayForPayGateway implements PaymentGatewayInterface
             implode(';', $data['productPrice']),
         ]);
 
-        Log::debug('Signature string for payment', [
-            'string' => $signatureString,
-            'secret_key_length' => strlen($this->merchantSecretKey),
-        ]);
+        Log::debug('WayForPay signature string', ['string' => $signatureString]);
 
         return hash_hmac('md5', $signatureString, $this->merchantSecretKey);
     }
 
     /**
      * Генерація підпису для webhook
+     * https://wiki.wayforpay.com/en/view/852136
      */
-    protected function generateWebhookSignature($request): string
+    protected function generateWebhookSignature(Request $request): string
     {
-        // Порядок полів для webhook (з документації)
         $signatureString = implode(';', [
             $request->input('merchantAccount'),
             $request->input('orderReference'),
@@ -241,15 +249,11 @@ class WayForPayGateway implements PaymentGatewayInterface
             $request->input('reasonCode'),
         ]);
 
-        Log::debug('Webhook signature string', [
-            'string' => $signatureString,
-        ]);
-
         return hash_hmac('md5', $signatureString, $this->merchantSecretKey);
     }
 
     /**
-     * Helper для дебагу - показує signature string
+     * Debug helper — показує рядок підпису
      */
     private function getSignatureString(array $data): string
     {

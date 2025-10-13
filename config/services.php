@@ -37,7 +37,7 @@ return [
 
     'wayforpay' => [
         'merchant_account' => env('WAYFORPAY_MERCHANT_ACCOUNT', 'test_merch_n1'),
-        'secret_key' => env('WAYFORPAY_SECRET_KEY', 'flk3409refn54t54t*FNJRET'),
+        'secret_key' => env('WAYFORPAY_SECRET_KEY', 'dhkq3vUi94{Z!5frxs(02ML'),
         'domain' => env('WAYFORPAY_DOMAIN', 'www.market.ua'),
     ],
 

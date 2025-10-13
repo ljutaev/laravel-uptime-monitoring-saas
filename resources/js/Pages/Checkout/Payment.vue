@@ -8,7 +8,7 @@ const props = defineProps({
 
 const formRef = ref(null);
 
-// onMounted(() => { formRef.value?.submit(); });
+onMounted(() => { formRef.value?.submit(); });
 </script>
 
 <template>

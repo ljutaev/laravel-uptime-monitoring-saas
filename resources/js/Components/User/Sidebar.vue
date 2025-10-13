@@ -139,7 +139,7 @@ const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
         <SidebarUses />
 
         <!-- profile-->
-        <div class="p-4 gap-2 mt-2 bg-gray-100 -ml-4 -mr-5 flex items-center text-gray-700 dark:text-gray-400">
+        <div class="p-4 gap-2 mt-2 bg-gray-100 -ml-4 -mr-5 flex items-center text-gray-700 dark:text-gray-400 relative">
             <a href="">
                 <img
                     v-if="avatarUrl"
@@ -154,13 +154,18 @@ const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
                     {{ userInitial }}
                 </div>
             </a>
-            <div>
+            <div class="">
                 <h4 class="text-center text-sm font-semibold text-gray-800 xl:text-left dark:text-white/90">
                     {{ userName }}
                 </h4>
+
                 <p class="text-xs leading-normal text-gray-500 dark:text-gray-400">
                     {{ planName }} Package
                 </p>
+
+                <a :href="route('logout')" class="absolute top-1/2 -translate-y-1/2 right-2 p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800" @click.prevent="$inertia.post(route('logout'))" title="Logout">
+                    <svg  xmlns="http://www.w3.org/2000/svg" class="fill-current w-4 h-4" viewBox="0 0 20 18"><path d="m15,4l-1.41,1.41,2.58,2.59H6v2h10.17l-2.58,2.58,1.41,1.42,5-5-5-5ZM2,2h8V0H2C.9,0,0,.9,0,2v14c0,1.1.9,2,2,2h8v-2H2V2Z"></path></svg>
+                </a>
             </div>
         </div>
     </aside>
