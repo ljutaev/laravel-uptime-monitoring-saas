@@ -111,7 +111,7 @@ const submit = () => {
                         <input
                             v-model.number="form.check_interval"
                             type="number"
-                            :min="minInterval"
+                            :min="form.check_interval"
                             max="60"
                             class="shadow-sm w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
                             :class="{ 'border-red-500': form.errors.check_interval }"

@@ -9,6 +9,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use App\Services\Subscription\FeatureUsageService;
 use Illuminate\Support\Facades\DB;
+use App\Models\User;
 
 class MonitorController extends Controller
 {
@@ -49,7 +50,9 @@ class MonitorController extends Controller
      */
     public function create()
     {
-        return Inertia::render('User/Monitors/Create');
+        return Inertia::render('User/Monitors/Create', [
+            'minInterval' => 1,
+        ]);
     }
 
     /**

@@ -157,18 +157,30 @@ class FeatureUsageService
     ): void {
         $period = $this->getCurrentPeriod();
 
-        FeatureUsage::updateOrCreate(
-            [
+        // Шукаємо існуючий запис
+        $usage = FeatureUsage::where('user_id', $user->id)
+            ->where('subscription_id', $subscriptionId)
+            ->where('feature_slug', $featureSlug)
+            ->where('period_start', $period['start'])
+            ->first();
+
+        if ($usage) {
+            // Оновлюємо існуючий
+            $usage->update([
+                'usage' => $usage->usage + $amount,
+                'period_end' => $period['end'],
+            ]);
+        } else {
+            // Створюємо новий
+            FeatureUsage::create([
                 'user_id' => $user->id,
                 'subscription_id' => $subscriptionId,
                 'feature_slug' => $featureSlug,
+                'usage' => $amount,
                 'period_start' => $period['start'],
-            ],
-            [
-                'usage' => DB::raw("usage + {$amount}"),
                 'period_end' => $period['end'],
-            ]
-        );
+            ]);
+        }
     }
 
     /**
