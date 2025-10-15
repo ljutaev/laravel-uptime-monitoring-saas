@@ -32,6 +32,12 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         return array_merge(parent::share($request), [
+            'flash' => function () {
+                return [
+                    'success' => session('success'),
+                    'error' => session('error'),
+                ];
+            },
             'auth' => [
                 'user' => $request->user(),
                 'subscription' => $request->user()?->activeSubscription ? [
@@ -54,6 +60,7 @@ class HandleInertiaRequests extends Middleware
                         'used' => app(FeatureUsageService::class)->getCurrentUsage($request->user(), 'domains'),
                     ],
                 ] : null,
+
             ],
             'breadcrumbs' => $request->route()?->getName() ? explode('.', Str::ucfirst( $request->route()?->getName())) : null,
         ]);

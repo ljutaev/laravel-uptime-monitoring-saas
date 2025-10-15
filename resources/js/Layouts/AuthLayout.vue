@@ -1,12 +1,17 @@
 <script setup>
     import Sidebar  from "@/Components/User/Sidebar.vue";
     import Breadcrumbs from "@/Components/Breadcrumbs.vue";
+    import FlashMessage from '@/Components/FlashMessage.vue';
 </script>
 
 <template>
+
     <div class="flex h-screen overflow-hidden bg-gray-50">
+
         <Sidebar />
         <main class="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden p-8 max-w-[1100px] mx-auto w-full">
+            <FlashMessage />
+
             <!-- Page Heading -->
             <header
                 v-if="$slots.header"
