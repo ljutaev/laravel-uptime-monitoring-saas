@@ -5,6 +5,7 @@ namespace App\Services\Subscription;
 use App\Models\FeatureUsage;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 
 class FeatureUsageService
@@ -62,6 +63,14 @@ class FeatureUsageService
             ->where('feature_slug', $featureSlug)
             ->where('period_start', $period['start'])
             ->first();
+
+        Log::info('Decreasing feature usage', [
+            'user_id' => $user->id,
+            'feature_slug' => $featureSlug,
+            'amount' => $amount,
+            'current_usage' => $usage ? $usage->usage : 0,
+            'usage_record' => $usage->usage,
+        ]);
 
         if ($usage) {
             $newUsage = max(0, $usage->usage - $amount);

@@ -35,7 +35,7 @@ class MonitorObserver
     {
         try {
             if ($monitor->user) {
-                $this->featureUsage->decrease($monitor->user, 'monitors', 1);
+                $this->featureUsage->decrease($monitor->user, 'domains', 1);
                 Log::info('Monitor deleted - feature usage decreased', [
                     'monitor_id' => $monitor->id,
                     'user_id' => $monitor->user_id,
