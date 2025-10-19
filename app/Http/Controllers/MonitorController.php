@@ -50,8 +50,11 @@ class MonitorController extends Controller
      */
     public function create()
     {
+        $user = auth()->user();
+
         return Inertia::render('User/Monitors/Create', [
             'minInterval' => 1,
+            'userEmail' => $user->email,
         ]);
     }
 
@@ -67,6 +70,33 @@ class MonitorController extends Controller
             'url' => 'required|url|max:500',
             'check_interval' => 'required|integer|min:1|max:60',
             'notifications_enabled' => 'boolean',
+            'alert_channels' => 'required|array|min:1',
+            'alert_channels.*.type' => 'required|in:email,telegram',
+            'alert_channels.*.value' => [
+                'required',
+                'string',
+                function ($attribute, $value, $fail) use ($request) {
+                    $index = explode('.', $attribute)[1];
+                    $type = $request->input("alert_channels.{$index}.type");
+
+                    if ($type === 'email' && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                        $fail('The email address is invalid.');
+                    }
+
+                    if ($type === 'telegram') {
+                        // Формат: api:token chat_id
+                        $parts = explode(' ', $value);
+                        if (count($parts) !== 2) {
+                            $fail('Telegram format must be: api:token chat_id');
+                        }
+
+                        $tokenPart = $parts[0] ?? '';
+                        if (!str_starts_with($tokenPart, 'api:')) {
+                            $fail('Telegram token must start with api:');
+                        }
+                    }
+                }
+            ],
         ]);
 
         try {
@@ -280,6 +310,7 @@ class MonitorController extends Controller
     public function edit(Monitor $monitor)
     {
         $this->authorize('update', $monitor);
+        $user = auth()->user();
 
         return Inertia::render('User/Monitors/Edit', [
             'monitor' => [
@@ -289,8 +320,10 @@ class MonitorController extends Controller
                 'type' => $monitor->type,
                 'check_interval' => $monitor->check_interval,
                 'notifications_enabled' => $monitor->notifications_enabled,
+                'alert_channels' => $monitor->alert_channels ?? [],
             ],
             'minInterval' => 1,
+            'userEmail' => $user->email,
         ]);
     }
 
@@ -306,6 +339,32 @@ class MonitorController extends Controller
             'url' => 'required|url|max:500',
             'check_interval' => 'required|integer|min:1|max:60',
             'notifications_enabled' => 'boolean',
+            'alert_channels' => 'required|array|min:1',
+            'alert_channels.*.type' => 'required|in:email,telegram',
+            'alert_channels.*.value' => [
+                'required',
+                'string',
+                function ($attribute, $value, $fail) use ($request) {
+                    $index = explode('.', $attribute)[1];
+                    $type = $request->input("alert_channels.{$index}.type");
+
+                    if ($type === 'email' && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                        $fail('The email address is invalid.');
+                    }
+
+                    if ($type === 'telegram') {
+                        $parts = explode(' ', $value);
+                        if (count($parts) !== 2) {
+                            $fail('Telegram format must be: api:token chat_id');
+                        }
+
+                        $tokenPart = $parts[0] ?? '';
+                        if (!str_starts_with($tokenPart, 'api:')) {
+                            $fail('Telegram token must start with api:');
+                        }
+                    }
+                }
+            ],
         ]);
 
         $monitor->update($validated);

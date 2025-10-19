@@ -1,6 +1,13 @@
 <script setup>
-import { useForm } from '@inertiajs/vue3';
+import { useForm, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
+
 import AuthLayout from "@/Layouts/AuthLayout.vue";
+
+
+const page = usePage();
+const pageProps = computed(() => page.props);
+const currentPlan = computed(() => pageProps.value.auth?.subscription ?? null);
 
 const props = defineProps({
     monitor: {
@@ -8,14 +15,22 @@ const props = defineProps({
         default: () => ({
             name: '',
             url: '',
-            check_interval: 1,
+            check_interval: 5,
             notifications_enabled: true,
+            alert_channels: [],
         })
     },
     minInterval: {
         type: Number,
         default: 1
-    }
+    },
+    userEmail: { type: String, required: true },
+    hasTelegram: { type: Boolean, default: false }
+});
+
+// Якщо користувач створює новий монітор, встановлюємо інтервал за планом
+const defaultCheckInterval = computed(() => {
+    return currentPlan.value?.plan_check_interval || 5;
 });
 
 const isEdit = !!props.monitor.id;
@@ -23,9 +38,20 @@ const isEdit = !!props.monitor.id;
 const form = useForm({
     name: props.monitor.name,
     url: props.monitor.url,
-    check_interval: props.monitor.check_interval,
+    check_interval: props.monitor.check_interval || defaultCheckInterval.value,
     notifications_enabled: props.monitor.notifications_enabled,
+    alert_channels: props.monitor.alert_channels?.length > 0
+        ? props.monitor.alert_channels
+        : [{ type: 'email', value: props.userEmail }],
 });
+
+const addChannel = () => {
+    form.alert_channels.push({ type: 'email', value: '' });
+};
+
+const removeChannel = (index) => {
+    form.alert_channels.splice(index, 1);
+};
 
 const submit = () => {
     if (isEdit) {
@@ -98,7 +124,7 @@ const submit = () => {
                         <input
                             v-model.number="form.check_interval"
                             type="number"
-                            :min="minInterval"
+                            :min="form.check_interval"
                             max="60"
                             class="shadow-sm w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
                             :class="{ 'border-red-500': form.errors.check_interval }"
@@ -108,6 +134,69 @@ const submit = () => {
                         </p>
                         <p v-if="form.errors.check_interval" class="mt-1 text-sm text-red-600 dark:text-red-400">
                             {{ form.errors.check_interval }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Alert channels <span class="text-red-500">*</span>
+                        </label>
+
+                        <div class="space-y-3">
+                            <div
+                                v-for="(channel, index) in form.alert_channels"
+                                :key="index"
+                                class="flex items-start gap-2"
+                            >
+                                <select
+                                    v-model="channel.type"
+                                    class="shadow-sm rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                                >
+                                    <option value="email">Email</option>
+                                    <option value="telegram">Telegram</option>
+                                </select>
+
+                                <div class="flex-1">
+                                    <input
+                                        v-model="channel.value"
+                                        :type="channel.type === 'email' ? 'email' : 'text'"
+                                        :placeholder="channel.type === 'email' ? 'example@example.com' : 'api:token chat_id'"
+                                        class="shadow-sm w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+                                    >
+                                    <p v-if="channel.type === 'telegram'" class="mt-1 text-xs text-cyan-600 dark:text-cyan-400">
+                                        api:token and chat_id must be separated by a space.
+                                        <a href="https://core.telegram.org/bots/api" target="_blank" class="underline hover:text-cyan-700">
+                                            Learn more at Telegram Bot API
+                                        </a>
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    @click="removeChannel(index)"
+                                    class="p-2.5 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-red-600 dark:border-gray-700 dark:hover:bg-gray-800"
+                                    :disabled="form.alert_channels.length === 1"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            @click="addChannel"
+                            class="mt-3 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            Add channel
+                        </button>
+
+                        <p v-if="form.errors.alert_channels" class="mt-1 text-sm text-red-600 dark:text-red-400">
+                            {{ form.errors.alert_channels }}
                         </p>
                     </div>
 

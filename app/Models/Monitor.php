@@ -25,6 +25,7 @@ class Monitor extends Model
         'uptime_30d',
         'total_incidents',
         'notifications_enabled',
+        'alert_channels',
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class Monitor extends Model
         'uptime_7d' => 'decimal:2',
         'uptime_30d' => 'decimal:2',
         'notifications_enabled' => 'boolean',
+        'alert_channels' => 'array',
     ];
 
     // Relationships
@@ -136,5 +138,21 @@ class Monitor extends Model
             ->where('checked_at', '>=', now()->subDays($days))
             ->where('is_up', true)
             ->avg('response_time');
+    }
+
+    public function hasAlertChannel(string $type): bool
+    {
+        if (!$this->alert_channels) {
+            return false;
+        }
+        return collect($this->alert_channels)->contains('type', $type);
+    }
+
+    public function getAlertChannel(string $type): ?array
+    {
+        if (!$this->alert_channels) {
+            return null;
+        }
+        return collect($this->alert_channels)->firstWhere('type', $type);
     }
 }

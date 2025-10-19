@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('monitor', function (Blueprint $table) {
+        Schema::table('monitors', function (Blueprint $table) {
             $table->json('alert_channels')->nullable()->after('notifications_enabled');
         });
     }
@@ -21,7 +21,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('monitor', function (Blueprint $table) {
+        Schema::table('monitors', function (Blueprint $table) {
             $table->dropColumn('alert_channels');
         });
     }

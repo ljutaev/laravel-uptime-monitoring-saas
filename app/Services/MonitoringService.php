@@ -1,6 +1,5 @@
 <?php
 
-// app/Services/MonitoringService.php
 namespace App\Services;
 
 use App\Models\Monitor;
@@ -20,14 +19,12 @@ class MonitoringService
     {
         $startTime = microtime(true);
 
-        // Базові дані для Check
         $checkData = [
             'monitor_id' => $monitor->id,
             'checked_at' => now(),
         ];
 
         try {
-            // Виконуємо HTTP запит
             $response = $this->performHttpCheck($monitor);
 
             $checkData = array_merge($checkData, [
@@ -36,14 +33,12 @@ class MonitoringService
                 'response_time' => (int)((microtime(true) - $startTime) * 1000),
             ]);
 
-            // SSL перевірка для HTTPS
             if ($response['is_up'] && str_starts_with($monitor->url, 'https://')) {
                 $sslData = $this->performSslCheck($monitor);
                 $checkData = array_merge($checkData, $sslData);
             }
 
         } catch (\Exception $e) {
-            // Помилка при перевірці
             $checkData = array_merge($checkData, [
                 'is_up' => false,
                 'error_message' => $e->getMessage(),
@@ -51,13 +46,8 @@ class MonitoringService
             ]);
         }
 
-        // Створюємо запис перевірки
         $check = Check::create($checkData);
-
-        // Оновлюємо статус монітора
         $this->updateMonitorStatus($monitor, $check);
-
-        // Обробляємо інциденти
         $this->handleIncidents($monitor, $check);
 
         return $check;
@@ -75,7 +65,7 @@ class MonitoringService
         $statusCode = $response->status();
 
         return [
-            'is_up' => $response->successful(), // 200-299
+            'is_up' => $response->successful(),
             'status_code' => $statusCode,
         ];
     }
@@ -167,7 +157,6 @@ class MonitoringService
         $currentIncident = $monitor->currentIncident;
 
         if (!$check->is_up && !$currentIncident) {
-            // 🔴 Сайт впав - створюємо новий інцидент
             $incident = Incident::create([
                 'monitor_id' => $monitor->id,
                 'status' => 'ongoing',
@@ -178,60 +167,144 @@ class MonitoringService
                 'failed_checks_count' => 1,
             ]);
 
-            // Оновлюємо лічильник інцидентів
             $monitor->increment('total_incidents');
-
-            // Надсилаємо сповіщення
-            $this->sendDownNotification($monitor, $incident);
+            $this->sendNotifications($monitor, $incident, 'down');
 
         } elseif (!$check->is_up && $currentIncident) {
-            // 🔴 Інцидент продовжується
             $currentIncident->increment('failed_checks_count');
 
         } elseif ($check->is_up && $currentIncident) {
-            // 🟢 Сайт відновився - закриваємо інцидент
             $currentIncident->resolve();
-
-            // Надсилаємо сповіщення про відновлення
-            $this->sendUpNotification($monitor, $currentIncident);
+            $this->sendNotifications($monitor, $currentIncident, 'up');
         }
     }
 
     /**
-     * Надіслати сповіщення про падіння
+     * Відправити сповіщення
      */
-    private function sendDownNotification(Monitor $monitor, Incident $incident): void
+    private function sendNotifications(Monitor $monitor, Incident $incident, string $type): void
     {
-        if (!$monitor->notifications_enabled) {
+        if (!$monitor->notifications_enabled || !$monitor->alert_channels) {
             return;
         }
 
-        try {
-            $monitor->user->notify(new SiteDownNotification($monitor, $incident));
+        foreach ($monitor->alert_channels as $channel) {
+            try {
+                if ($channel['type'] === 'email') {
+                    $this->sendEmailNotification($monitor, $incident, $channel['value'], $type);
+                } elseif ($channel['type'] === 'telegram') {
+                    $this->sendTelegramNotification($monitor, $incident, $channel['value'], $type);
+                }
+            } catch (\Exception $e) {
+                Log::error("Failed to send {$type} notification via {$channel['type']}: {$e->getMessage()}");
+            }
+        }
+    }
 
-            $incident->update([
-                'email_sent' => $monitor->user->email_notifications,
-                'telegram_sent' => $monitor->user->telegram_enabled && $monitor->user->telegram_chat_id,
-                'notifications_sent_at' => now(),
+    /**
+     * Відправити email сповіщення
+     */
+    private function sendEmailNotification(Monitor $monitor, Incident $incident, string $email, string $type): void
+    {
+        $notificationClass = $type === 'down' ? SiteDownNotification::class : SiteUpNotification::class;
+        \Notification::route('mail', $email)->notify(new $notificationClass($monitor, $incident));
+    }
+
+    /**
+     * Відправити Telegram сповіщення
+     */
+    private function sendTelegramNotification(Monitor $monitor, Incident $incident, string $value, string $type): void
+    {
+        // Видаляємо префікс api: якщо є
+        $cleanValue = str_starts_with($value, 'api:')
+            ? substr($value, 4)
+            : $value;
+
+        // Парсимо різні формати
+        if (str_contains($cleanValue, ' ')) {
+            // Формат: token chat_id (з пробілом)
+            $parts = explode(' ', $cleanValue, 2);
+        } elseif (substr_count($cleanValue, ':') >= 2) {
+            // Формат: 461893873:AAGVXKMt-p3bI6BJxewfij7J-4SgJmhFf9I:370558652
+            $lastColon = strrpos($cleanValue, ':');
+            $parts = [
+                substr($cleanValue, 0, $lastColon),
+                substr($cleanValue, $lastColon + 1)
+            ];
+        } else {
+            Log::error("Invalid Telegram format", ['value' => $value]);
+            return;
+        }
+
+        if (count($parts) !== 2) {
+            Log::error("Invalid Telegram format", ['value' => $value]);
+            return;
+        }
+
+        $token = $parts[0];
+        $chatId = $parts[1];
+
+        $text = $type === 'down'
+            ? $this->buildTelegramDownMessage($monitor, $incident)
+            : $this->buildTelegramUpMessage($monitor, $incident);
+
+        try {
+            $response = Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                'chat_id' => $chatId,
+                'text' => $text,
+                'parse_mode' => 'Markdown',
             ]);
+
+            if (!$response->successful()) {
+                Log::error("Telegram notification failed", [
+                    'chat_id' => $chatId,
+                    'response' => $response->body(),
+                ]);
+            } else {
+                Log::info("Telegram notification sent successfully", [
+                    'chat_id' => $chatId,
+                    'monitor_id' => $monitor->id,
+                ]);
+            }
         } catch (\Exception $e) {
-            Log::error("Failed to send down notification: {$e->getMessage()}");
+            Log::error("Telegram API error: {$e->getMessage()}");
         }
     }
 
     /**
-     * Надіслати сповіщення про відновлення
+     * Побудувати повідомлення про падіння
      */
-    private function sendUpNotification(Monitor $monitor, Incident $incident): void
+    private function buildTelegramDownMessage(Monitor $monitor, Incident $incident): string
     {
-        if (!$monitor->notifications_enabled) {
-            return;
+        $text = "🔴 *Сайт недоступний*\n\n";
+        $text .= "Сайт: *{$monitor->name}*\n";
+        $text .= "URL: {$monitor->url}\n";
+        $text .= "Час: " . $incident->started_at->format('d.m.Y H:i') . "\n";
+
+        if ($incident->status_code) {
+            $text .= "Код: {$incident->status_code}\n";
         }
 
-        try {
-            $monitor->user->notify(new SiteUpNotification($monitor, $incident));
-        } catch (\Exception $e) {
-            Log::error("Failed to send up notification: {$e->getMessage()}");
+        if ($incident->error_message) {
+            $text .= "Помилка: {$incident->error_message}\n";
         }
+
+        return $text;
+    }
+
+    /**
+     * Побудувати повідомлення про відновлення
+     */
+    private function buildTelegramUpMessage(Monitor $monitor, Incident $incident): string
+    {
+        $downtime = $incident->getDurationFormatted();
+
+        $text = "✅ *Сайт відновлено*\n\n";
+        $text .= "Сайт: *{$monitor->name}*\n";
+        $text .= "URL: {$monitor->url}\n";
+        $text .= "Час простою: {$downtime}\n";
+        $text .= "Відновлено: " . $incident->resolved_at->format('d.m.Y H:i');
+
+        return $text;
     }
 }
