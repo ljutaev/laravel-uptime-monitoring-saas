@@ -255,6 +255,7 @@ const changeTab = (tab) => {
                             <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">No incidents found.</p>
                         </div>
                         <div v-else>
+
                             <Link
                                 :href="route('monitors.show', { id: monitor.id, tab: 'incidents' })"
                                 class="block text-center text-sm text-blue-600 hover:text-blue-700"
@@ -348,6 +349,7 @@ const changeTab = (tab) => {
                     </div>
 
                     <div v-else class="p-6">
+                        {{incidents}}
                         <!-- Incidents list here if needed -->
                         <p class="text-sm text-gray-500">{{ incidents.total }} incidents found</p>
                     </div>

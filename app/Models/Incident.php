@@ -78,4 +78,13 @@ class Incident extends Model
             return sprintf('%d сек', $seconds);
         }
     }
+
+    public function getStatusColorAttribute(): string
+    {
+        return match($this->status) {
+            'ongoing' => 'red',
+            'resolved' => 'green',
+            default => 'gray',
+        };
+    }
 }

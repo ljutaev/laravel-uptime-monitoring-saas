@@ -16,7 +16,7 @@ const badgeClassByStatusCode = (code) => {
     return 'bg-red-500'
 }
 
-console.log(props.stats.monitors)
+console.log(props.recentChecks)
 </script>
 
 <template>
