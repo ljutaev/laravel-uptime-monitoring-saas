@@ -1,9 +1,9 @@
 <?php
 
-// app/Models/Incident.php
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Incident extends Model
 {
@@ -30,53 +30,74 @@ class Incident extends Model
         'telegram_sent' => 'boolean',
     ];
 
-    // Relationships
     public function monitor()
     {
         return $this->belongsTo(Monitor::class);
     }
 
-    // Scopes
-    public function scopeOngoing($query)
-    {
-        return $query->where('status', 'ongoing');
-    }
-
-    public function scopeResolved($query)
-    {
-        return $query->where('status', 'resolved');
-    }
-
-    // Helper methods
     public function isOngoing(): bool
     {
         return $this->status === 'ongoing';
     }
 
+    public function isResolved(): bool
+    {
+        return $this->status === 'resolved';
+    }
+
     public function resolve(): void
     {
+        $resolvedAt = now();
+
+        // Обчислюємо тривалість (завжди позитивне значення)
+        $duration = abs($this->started_at->diffInSeconds($resolvedAt));
+
         $this->update([
-            'resolved_at' => now(),
-            'duration' => now()->diffInSeconds($this->started_at),
             'status' => 'resolved',
+            'resolved_at' => $resolvedAt,
+            'duration' => $duration,
         ]);
     }
 
     public function getDurationFormatted(): string
     {
-        if (!$this->duration) return '-';
-
-        $hours = floor($this->duration / 3600);
-        $minutes = floor(($this->duration % 3600) / 60);
-        $seconds = $this->duration % 60;
-
-        if ($hours > 0) {
-            return sprintf('%d год %d хв', $hours, $minutes);
-        } elseif ($minutes > 0) {
-            return sprintf('%d хв %d сек', $minutes, $seconds);
-        } else {
-            return sprintf('%d сек', $seconds);
+        // Якщо incident ще не вирішено
+        if (!$this->duration && $this->status === 'ongoing') {
+            $currentDuration = abs(now()->diffInSeconds($this->started_at));
+            return $this->formatDuration($currentDuration) . ' (ongoing)';
         }
+
+        // Якщо duration не встановлено
+        if (!$this->duration) {
+            return 'N/A';
+        }
+
+        return $this->formatDuration($this->duration);
+    }
+
+    private function formatDuration(int $seconds): string
+    {
+        $minutes = floor($seconds / 60);
+        $secs = $seconds % 60;
+
+        if ($minutes >= 60) {
+            $hours = floor($minutes / 60);
+            $mins = $minutes % 60;
+
+            if ($hours >= 24) {
+                $days = floor($hours / 24);
+                $hrs = $hours % 24;
+                return "{$days}d {$hrs}h {$mins}m";
+            }
+
+            return "{$hours}h {$mins}m";
+        }
+
+        if ($minutes > 0) {
+            return "{$minutes}m {$secs}s";
+        }
+
+        return "{$secs}s";
     }
 
     public function getStatusColorAttribute(): string

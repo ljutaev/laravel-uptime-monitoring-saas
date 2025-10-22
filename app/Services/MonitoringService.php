@@ -185,22 +185,62 @@ class MonitoringService
     private function sendNotifications(Monitor $monitor, Incident $incident, string $type): void
     {
         if (!$monitor->notifications_enabled || !$monitor->alert_channels) {
+            Log::info('Notifications disabled or no channels configured', [
+                'monitor_id' => $monitor->id,
+            ]);
             return;
         }
 
-        \Log::info('Sending ' . $type . ' notifications for Monitor ID: ' . $monitor->id);
+        Log::info('Sending ' . $type . ' notifications', [
+            'monitor_id' => $monitor->id,
+            'incident_id' => $incident->id,
+            'channels' => $monitor->alert_channels,
+        ]);
 
+        $emailSent = false;
+        $telegramSent = false;
+
+        // Відправляємо сповіщення через всі канали
         foreach ($monitor->alert_channels as $channel) {
             try {
                 if ($channel['type'] === 'email') {
                     $this->sendEmailNotification($monitor, $incident, $channel['value'], $type);
-                } elseif ($channel['type'] === 'telegram') {
-                    $this->sendTelegramNotification($monitor, $incident, $channel['value'], $type);
+                    $emailSent = true;
+                    Log::info('Email sent successfully', [
+                        'email' => $channel['value'],
+                        'incident_id' => $incident->id,
+                    ]);
+                }
+
+                if ($channel['type'] === 'telegram') {
+                    $success = $this->sendTelegramNotification($monitor, $incident, $channel['value'], $type);
+                    if ($success) {
+                        $telegramSent = true;
+                        Log::info('Telegram sent successfully', [
+                            'incident_id' => $incident->id,
+                        ]);
+                    }
                 }
             } catch (\Exception $e) {
-                Log::error("Failed to send {$type} notification via {$channel['type']}: {$e->getMessage()}");
+                Log::error("Failed to send {$type} notification", [
+                    'channel_type' => $channel['type'],
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
+
+        // Оновлюємо incident ОДИН РАЗ після всіх відправок
+        $incident->update([
+            'notifications_sent_at' => now(),
+            'email_sent' => $emailSent,
+            'telegram_sent' => $telegramSent,
+        ]);
+
+        Log::info('Incident notification status updated', [
+            'incident_id' => $incident->id,
+            'email_sent' => $emailSent,
+            'telegram_sent' => $telegramSent,
+        ]);
     }
 
     /**
@@ -215,19 +255,15 @@ class MonitoringService
     /**
      * Відправити Telegram сповіщення
      */
-    private function sendTelegramNotification(Monitor $monitor, Incident $incident, string $value, string $type): void
+    private function sendTelegramNotification(Monitor $monitor, Incident $incident, string $value, string $type): bool
     {
-        // Видаляємо префікс api: якщо є
         $cleanValue = str_starts_with($value, 'api:')
             ? substr($value, 4)
             : $value;
 
-        // Парсимо різні формати
         if (str_contains($cleanValue, ' ')) {
-            // Формат: token chat_id (з пробілом)
             $parts = explode(' ', $cleanValue, 2);
         } elseif (substr_count($cleanValue, ':') >= 2) {
-            // Формат: 461893873:AAGVXKMt-p3bI6BJxewfij7J-4SgJmhFf9I:370558652
             $lastColon = strrpos($cleanValue, ':');
             $parts = [
                 substr($cleanValue, 0, $lastColon),
@@ -235,12 +271,12 @@ class MonitoringService
             ];
         } else {
             Log::error("Invalid Telegram format", ['value' => $value]);
-            return;
+            return false;
         }
 
         if (count($parts) !== 2) {
             Log::error("Invalid Telegram format", ['value' => $value]);
-            return;
+            return false;
         }
 
         $token = $parts[0];
@@ -258,18 +294,21 @@ class MonitoringService
             ]);
 
             if (!$response->successful()) {
-                Log::error("Telegram notification failed", [
+                Log::error("Telegram API error", [
                     'chat_id' => $chatId,
-                    'response' => $response->body(),
+                    'status' => $response->status(),
+                    'body' => $response->body(),
                 ]);
-            } else {
-                Log::info("Telegram notification sent successfully", [
-                    'chat_id' => $chatId,
-                    'monitor_id' => $monitor->id,
-                ]);
+                return false;
             }
+
+            return true;
+
         } catch (\Exception $e) {
-            Log::error("Telegram API error: {$e->getMessage()}");
+            Log::error("Telegram exception", [
+                'error' => $e->getMessage(),
+            ]);
+            return false;
         }
     }
 

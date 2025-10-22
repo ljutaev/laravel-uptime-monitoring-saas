@@ -1,6 +1,5 @@
 <?php
 
-// app/Notifications/SiteDownNotification.php
 namespace App\Notifications;
 
 use App\Models\Monitor;
@@ -21,17 +20,7 @@ class SiteDownNotification extends Notification
      */
     public function via($notifiable): array
     {
-        $channels = [];
-
-        if ($notifiable->email_notifications) {
-            $channels[] = 'mail';
-        }
-
-        if ($notifiable->telegram_enabled && $notifiable->telegram_chat_id) {
-//            $channels[] = 'telegram';
-        }
-
-        return $channels;
+        return ['mail'];
     }
 
     /**
@@ -39,44 +28,21 @@ class SiteDownNotification extends Notification
      */
     public function toMail($notifiable): MailMessage
     {
-
-        Log::info('Preparing SiteDownNotification email', [
-            'user_id' => $notifiable->id,
+        Log::info('Sending SiteDownNotification email', [
             'monitor_id' => $this->monitor->id,
             'incident_id' => $this->incident->id,
         ]);
 
         return (new MailMessage)
             ->error()
-            ->subject("🔴 Сайт недоступний: {$this->monitor->name}")
-            ->greeting("Привіт, {$notifiable->name}!")
-            ->line("Ваш сайт **{$this->monitor->name}** недоступний.")
+            ->subject("🔴 Site Down: {$this->monitor->name}")
+            ->greeting("Alert!")
+            ->line("Your website **{$this->monitor->name}** is currently down.")
             ->line("**URL:** {$this->monitor->url}")
-            ->line("**Час падіння:** " . $this->incident->started_at->format('d.m.Y H:i:s'))
-            ->line("**Статус код:** " . ($this->incident->status_code ?? 'N/A'))
-            ->line("**Помилка:** " . ($this->incident->error_message ?? 'Немає відповіді'))
-            ->action('Переглянути деталі', url("/monitors/{$this->monitor->id}"))
-            ->line('Ми повідомимо вас, коли сайт відновиться.');
-    }
-
-    /**
-     * Telegram сповіщення
-     */
-    public function toTelegram($notifiable): array
-    {
-        $text = "🔴 *Сайт недоступний*\n\n";
-        $text .= "Сайт: *{$this->monitor->name}*\n";
-        $text .= "URL: {$this->monitor->url}\n";
-        $text .= "Час: " . $this->incident->started_at->format('d.m.Y H:i') . "\n";
-
-        if ($this->incident->status_code) {
-            $text .= "Код: {$this->incident->status_code}\n";
-        }
-
-        return [
-            'chat_id' => $notifiable->telegram_chat_id,
-            'text' => $text,
-            'parse_mode' => 'Markdown',
-        ];
+            ->line("**Downtime started:** " . $this->incident->started_at->format('d.m.Y H:i:s'))
+            ->line("**Status code:** " . ($this->incident->status_code ?? 'N/A'))
+            ->line("**Error:** " . ($this->incident->error_message ?? 'No response'))
+            ->action('View Details', url("/incidents/{$this->incident->id}"))
+            ->line('We will notify you when the site is back up.');
     }
 }

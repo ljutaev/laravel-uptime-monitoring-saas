@@ -1,6 +1,5 @@
 <?php
 
-// app/Notifications/SiteUpNotification.php
 namespace App\Notifications;
 
 use App\Models\Monitor;
@@ -20,17 +19,7 @@ class SiteUpNotification extends Notification
      */
     public function via($notifiable): array
     {
-        $channels = [];
-
-        if ($notifiable->email_notifications) {
-            $channels[] = 'mail';
-        }
-
-        if ($notifiable->telegram_enabled && $notifiable->telegram_chat_id) {
-//            $channels[] = 'telegram';
-        }
-
-        return $channels;
+        return ['mail'];
     }
 
     /**
@@ -42,32 +31,12 @@ class SiteUpNotification extends Notification
 
         return (new MailMessage)
             ->success()
-            ->subject("✅ Сайт відновлено: {$this->monitor->name}")
-            ->greeting("Добрі новини!")
-            ->line("Ваш сайт **{$this->monitor->name}** знову доступний.")
+            ->subject("✅ Site Restored: {$this->monitor->name}")
+            ->greeting("Good news!")
+            ->line("Your website **{$this->monitor->name}** is back online.")
             ->line("**URL:** {$this->monitor->url}")
-            ->line("**Час простою:** {$downtime}")
-            ->line("**Відновлено:** " . $this->incident->resolved_at->format('d.m.Y H:i:s'))
-            ->action('Переглянути статистику', url("/monitors/{$this->monitor->id}"));
-    }
-
-    /**
-     * Telegram сповіщення
-     */
-    public function toTelegram($notifiable): array
-    {
-        $downtime = $this->incident->getDurationFormatted();
-
-        $text = "✅ *Сайт відновлено*\n\n";
-        $text .= "Сайт: *{$this->monitor->name}*\n";
-        $text .= "URL: {$this->monitor->url}\n";
-        $text .= "Час простою: {$downtime}\n";
-        $text .= "Відновлено: " . $this->incident->resolved_at->format('d.m.Y H:i');
-
-        return [
-            'chat_id' => $notifiable->telegram_chat_id,
-            'text' => $text,
-            'parse_mode' => 'Markdown',
-        ];
+            ->line("**Downtime duration:** {$downtime}")
+            ->line("**Restored at:** " . $this->incident->resolved_at->format('d.m.Y H:i:s'))
+            ->action('View Statistics', url("/incidents/{$this->incident->id}"));
     }
 }
