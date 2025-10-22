@@ -25,9 +25,14 @@ const used = computed(() => limits.value.used ?? 0)
 const remaining = computed(() => limits.value.remaining ?? 0)
 const total = computed(() => used.value + remaining.value)
 
+// console.log(used.value, remaining.value, total.value)
+
+
 // 📊 Відсоток використання
 const usagePercent = computed(() => {
     if (total.value === 0) return 0
     return Math.min((used.value / total.value) * 100, 100).toFixed(1)
 })
+
+console.log((used.value / total.value) * 100 )
 </script>

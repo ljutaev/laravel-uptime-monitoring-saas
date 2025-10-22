@@ -33,6 +33,10 @@ class MonitorObserver
      */
     public function deleted(Monitor $monitor): void
     {
+        Log:info('Monitor deleted', [
+            'monitor_id' => $monitor->id,
+            'user_id' => $monitor->user_id,
+        ]);
         try {
             if ($monitor->user) {
                 $this->featureUsage->decrease($monitor->user, 'domains', 1);

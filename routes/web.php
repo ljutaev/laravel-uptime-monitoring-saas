@@ -10,6 +10,7 @@ use App\Http\Controllers\MonitorController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\PlanController;
+use App\Http\Controllers\IncidentController;
 
 
 Route::get('/', function () {
@@ -37,6 +38,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/checkout/success', function() {
         return Inertia::render('Checkout/Success');
     })->name('checkout.success');
+
+    Route::get('/incidents', [IncidentController::class, 'index'])->name('incidents.index');
+    Route::get('/incidents/{incident}', [IncidentController::class, 'show'])->name('incidents.show');
 });
 
 Route::get('/', function () {

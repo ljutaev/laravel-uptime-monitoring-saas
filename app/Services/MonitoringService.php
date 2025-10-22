@@ -188,6 +188,8 @@ class MonitoringService
             return;
         }
 
+        \Log::info('Sending ' . $type . ' notifications for Monitor ID: ' . $monitor->id);
+
         foreach ($monitor->alert_channels as $channel) {
             try {
                 if ($channel['type'] === 'email') {
