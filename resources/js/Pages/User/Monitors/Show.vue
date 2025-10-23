@@ -36,6 +36,7 @@ const props = defineProps({
     incidents: Object,
     currentTab: String,
     currentPeriod: String,
+    recentIncidents: Array
 });
 
 const statusColor = computed(() => {
@@ -253,16 +254,62 @@ const getIncidentStatusBadge = (status) => {
                     <!-- Incidents -->
                     <div class="bg-white dark:bg-white/[0.03] rounded-xl border border-gray-200 dark:border-gray-800 p-6">
                         <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Incidents</h3>
+
                         <div v-if="overview.incidents_count === 0" class="text-center py-8">
                             <span class="text-green-600 text-2xl">✓</span>
                             <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">No incidents found.</p>
                         </div>
-                        <div v-else>
-                            <Link
-                                :href="route('monitors.show', { id: monitor.id, tab: 'incidents' })"
-                                class="block text-center text-sm text-blue-600 hover:text-blue-700"
+
+                        <div v-else class="space-y-3">
+                            <div class="flex justify-between text-sm font-medium text-gray-500 dark:text-gray-400 pb-2 border-b border-gray-200 dark:border-gray-800">
+                                <span>Status</span>
+                                <span>Duration</span>
+                            </div>
+
+                            <!-- Показуємо останні 5 інцидентів -->
+                            <div
+                                v-for="(incident, index) in recentIncidents.slice(0, 5)"
+                                :key="index"
+                                class="flex items-center justify-between py-2"
                             >
-                                View {{ overview.incidents_count }} incidents →
+                                <div class="flex items-center gap-2">
+                <span
+                    v-if="incident.status === 'ongoing'"
+                    class="w-2 h-2 rounded-full bg-red-500 animate-pulse"
+                ></span>
+                                    <span
+                                        v-else
+                                        class="w-2 h-2 rounded-full bg-green-500"
+                                    ></span>
+                                    <span
+                                        :class="incident.status === 'ongoing' ? 'text-red-600' : 'text-green-600'"
+                                        class="text-xs font-medium capitalize"
+                                    >
+                    {{ incident.status }}
+                </span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ new Date(incident.started_at).toLocaleString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    }) }}
+                </span>
+                                </div>
+                                <span class="text-sm text-gray-700 dark:text-gray-400">
+                {{ incident.duration }}
+            </span>
+                            </div>
+
+                            <Link
+                                :href="route('monitors.show', {
+                                    id: monitor.id,
+                                    period: currentPeriod,
+                                    tab: 'incidents'
+                                })"
+                                class="block text-center text-sm text-blue-600 hover:text-blue-700 pt-2"
+                            >
+                                View all {{ overview.incidents_count }} incidents →
                             </Link>
                         </div>
                     </div>

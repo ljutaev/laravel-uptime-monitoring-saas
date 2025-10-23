@@ -187,8 +187,10 @@ class MonitorController extends Controller
         // SSL Info
         $latestCheck = $monitor->checks()->latest('checked_at')->first();
         $sslInfo = null;
+        $user = auth()->user();
+        $canCheckSsl = $this->featureUsage->canUse($user, 'ssl_monitoring');
 
-        if ($latestCheck && $latestCheck->ssl_expires_at) {
+        if ($canCheckSsl && $latestCheck && $latestCheck->ssl_expires_at ) {
             $daysUntilExpiry = now()->diffInDays($latestCheck->ssl_expires_at, false);
             $sslInfo = [
                 'valid' => $latestCheck->ssl_valid,
@@ -231,6 +233,21 @@ class MonitorController extends Controller
                 ]);
         }
 
+        // Додаємо останні інциденти для overview
+        $recentIncidents = $monitor->incidents()
+            ->where('started_at', '>=', now()->subDays($days))
+            ->latest('started_at')
+            ->limit(5)
+            ->get()
+            ->map(fn($incident) => [
+                'id' => $incident->id,
+                'status' => $incident->status,
+                'started_at' => $incident->started_at->format('Y-m-d H:i:s'),
+                'resolved_at' => $incident->resolved_at?->format('Y-m-d H:i:s'),
+                'duration' => $incident->getDurationFormatted(),
+                'error_message' => $incident->error_message,
+            ]);
+
         return Inertia::render('User/Monitors/Show', [
             'monitor' => $monitorData,
             'overview' => $overview,
@@ -241,6 +258,7 @@ class MonitorController extends Controller
             'incidents' => $incidents,
             'currentTab' => $tab,
             'currentPeriod' => $period,
+            'recentIncidents' => $recentIncidents, // Додали це
         ]);
     }
 
