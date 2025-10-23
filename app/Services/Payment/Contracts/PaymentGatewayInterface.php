@@ -13,4 +13,6 @@ interface PaymentGatewayInterface
     public function getPaymentStatus(string $transactionId): string;
     public function verifyWebhookSignature(Request $request): bool;
     public function getPaymentUrl(array $paymentData): string;
+
+    public function chargeRecurring(Subscription $subscription): array;
 }

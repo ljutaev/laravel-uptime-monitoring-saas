@@ -185,9 +185,6 @@ class MonitoringService
     private function sendNotifications(Monitor $monitor, Incident $incident, string $type): void
     {
         if (!$monitor->notifications_enabled || !$monitor->alert_channels) {
-            Log::info('Notifications disabled or no channels configured', [
-                'monitor_id' => $monitor->id,
-            ]);
             return;
         }
 

@@ -66,6 +66,13 @@ class WayForPayGateway implements PaymentGatewayInterface
             'returnUrl'           => route('checkout.success'),
             'serviceUrl'          => route('webhooks.wayforpay'),
             'defaultPaymentSystem' => 'card',
+
+            // ⚠️ ДОДАТИ ЦІ ПАРАМЕТРИ ДЛЯ РЕГУЛЯРКИ:
+            'regularMode' => $this->getRegularMode($subscription->billing_period),
+            'regularAmount' => $amount,
+            'dateNext' => $this->getNextPaymentDate($subscription),
+            'regularCount' => 120, // або dateEnd
+            'regularBehavior' => 'preset', // клієнт не може змінити
         ];
 
         // Генеруємо підпис
@@ -85,6 +92,26 @@ class WayForPayGateway implements PaymentGatewayInterface
             'form_data'   => $paymentData,
             'action_url'  => 'https://secure.wayforpay.com/pay',
         ];
+    }
+
+    private function getRegularMode(string $billingPeriod): string
+    {
+        return match($billingPeriod) {
+            'monthly' => 'monthly',
+            'yearly' => 'yearly',
+            default => 'monthly',
+        };
+    }
+
+    private function getNextPaymentDate(Subscription $subscription): string
+    {
+        $next = match($subscription->billing_period) {
+            'monthly' => now()->addMonth(),
+            'yearly' => now()->addYear(),
+            default => now()->addMonth(),
+        };
+
+        return $next->format('d.m.Y');
     }
 
     /**
@@ -141,6 +168,12 @@ class WayForPayGateway implements PaymentGatewayInterface
         $subscription = $payment->subscription;
 
         if ($subscription) {
+            if (request()->has('recToken')) {
+                $subscription->update([
+                    'gateway_subscription_id' => request('recToken'),
+                ]);
+            }
+
             if ($subscription->status === Subscription::STATUS_PENDING) {
                 $subscription->activate();
                 $subscription->update([
@@ -155,6 +188,11 @@ class WayForPayGateway implements PaymentGatewayInterface
         Log::info('Payment successful', [
             'payment_id'      => $payment->id,
             'subscription_id' => $subscription->id ?? null,
+        ]);
+
+        Log::info('recToken saved', [
+            'subscription_id' => $subscription->id,
+            'recToken' => request('recToken'),
         ]);
     }
 
@@ -268,5 +306,121 @@ class WayForPayGateway implements PaymentGatewayInterface
             implode(';', $data['productCount']),
             implode(';', $data['productPrice']),
         ]);
+    }
+
+    public function chargeRecurring(Subscription $subscription): array
+    {
+        if (!$subscription->gateway_subscription_id) {
+            throw new \Exception('No recToken found for subscription');
+        }
+
+        $orderReference = 'RECURRING_' . $subscription->id . '_' . time();
+        $orderDate = time();
+        $amount = number_format($subscription->price, 2, '.', '');
+
+        $data = [
+            'transactionType' => 'CHARGE',
+            'merchantAccount' => $this->merchantAccount,
+            'merchantDomainName' => $this->merchantDomainName,
+            'orderReference' => $orderReference,
+            'orderDate' => $orderDate,
+            'amount' => $amount,
+            'currency' => strtoupper($subscription->currency),
+            'productName' => [$subscription->plan->name],
+            'productCount' => [1],
+            'productPrice' => [$amount],
+            'recToken' => $subscription->gateway_subscription_id, // ⚠️ ВИКОРИСТОВУЄМО ЗБЕРЕЖЕНИЙ TOKEN
+        ];
+
+        $data['merchantSignature'] = $this->generateChargeSignature($data);
+
+        // Відправляємо запит до WayForPay API
+        $response = Http::post('https://api.wayforpay.com/api', $data);
+
+        Log::info('Recurring charge request', [
+            'subscription_id' => $subscription->id,
+            'orderReference' => $orderReference,
+            'response' => $response->json(),
+        ]);
+
+        if (!$response->successful()) {
+            return [
+                'success' => false,
+                'message' => 'API request failed',
+            ];
+        }
+
+        $result = $response->json();
+
+        // Створюємо запис платежу
+        $payment = Payment::create([
+            'user_id' => $subscription->user_id,
+            'subscription_id' => $subscription->id,
+            'payment_gateway' => 'wayforpay',
+            'transaction_id' => $orderReference,
+            'status' => Payment::STATUS_PENDING,
+            'amount' => $amount,
+            'currency' => $subscription->currency,
+            'gateway_response' => $result,
+        ]);
+
+        // Перевіряємо статус
+        if (isset($result['reasonCode']) && $result['reasonCode'] === 1100) {
+            // ✅ Успішно списано
+            $payment->markAsCompleted();
+            $subscription->renew(); // Продовжуємо підписку на наступний період
+
+            return [
+                'success' => true,
+                'payment' => $payment,
+            ];
+        }
+
+        // ❌ Помилка списання
+        $payment->markAsFailed();
+
+        return [
+            'success' => false,
+            'message' => $result['reason'] ?? 'Payment failed',
+            'reasonCode' => $result['reasonCode'] ?? null,
+        ];
+    }
+
+    private function generateChargeSignature(array $data): string
+    {
+        $string = implode(';', [
+            $data['merchantAccount'],
+            $data['merchantDomainName'],
+            $data['orderReference'],
+            $data['orderDate'],
+            $data['amount'],
+            $data['currency'],
+            implode(';', $data['productName']),
+            implode(';', $data['productCount']),
+            implode(';', $data['productPrice']),
+        ]);
+
+        return hash_hmac('md5', $string, $this->merchantSecretKey);
+    }
+
+    public function checkPaymentStatus(string $orderReference): array
+    {
+        $data = [
+            'transactionType' => 'CHECK_STATUS',
+            'merchantAccount' => $this->merchantAccount,
+            'orderReference' => $orderReference,
+            'apiVersion' => 1,
+        ];
+
+        // Генеруємо підпис
+        $signatureString = implode(';', [
+            $data['merchantAccount'],
+            $data['orderReference'],
+        ]);
+        $data['merchantSignature'] = hash_hmac('md5', $signatureString, $this->merchantSecretKey);
+
+        $response = Http::post('https://api.wayforpay.com/api', $data);
+
+        return $response->json();
     }
 }
