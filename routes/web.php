@@ -57,6 +57,8 @@ Route::get('/', function () {
 //Route::post('/wayforpay/callback', [SubscriptionController::class, 'callback'])->name('wayforpay.callback');
 
 // Webhooks (без auth middleware)
-Route::post('/webhooks/wayforpay', [WebhookController::class, 'wayforpay'])->name('webhooks.wayforpay');
+Route::post('/webhooks/wayforpay', [WebhookController::class, 'wayforpay'])
+    ->withoutMiddleware([Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
+    ->name('webhooks.wayforpay');
 
 require __DIR__.'/auth.php';
