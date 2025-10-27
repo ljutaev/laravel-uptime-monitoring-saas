@@ -27,7 +27,7 @@ class AppServiceProvider extends ServiceProvider
         Monitor::observe(MonitorObserver::class);
 
         if (app()->environment('local')) {
-            URL::forceScheme('https');
+//            URL::forceScheme('https');
         }
     }
 }

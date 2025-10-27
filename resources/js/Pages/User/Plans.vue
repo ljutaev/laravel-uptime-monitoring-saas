@@ -16,6 +16,8 @@ const billingCycle = ref("month"); // "month" | "year"
             Plans
         </template>
 
+        {{ plans }}
+
         <h2 class="mb-7 text-center text-title-sm font-bold text-gray-800 dark:text-white/90 text-2xl">
             Flexible Plans Tailored to Fit<br> Your Unique Needs!
         </h2>
@@ -55,7 +57,7 @@ const billingCycle = ref("month"); // "month" | "year"
                             <span v-else>
                                 {{ billingCycle === 'month' ? plan.monthly_price : plan.yearly_price }}
                                 {{ plan.currency }}
-                              </span>
+                            </span>
 
                             <span class="mb-1 inline-block text-sm text-gray-500 dark:text-gray-400" v-if="plan.monthly_price != '0'">
                                 /{{ billingCycle }}
