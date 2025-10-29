@@ -35,9 +35,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/checkout/{plan}', [CheckoutController::class, 'show'])->name('checkout.show');
     Route::post('/checkout/{plan}/process', [CheckoutController::class, 'process'])->name('checkout.process');
-    Route::get('/checkout/success', function() {
-        return Inertia::render('Checkout/Success');
-    })->name('checkout.success');
+    Route::get('/checkout/success', [CheckoutController::class, 'success'])->name('checkout.success');
 
     Route::get('/incidents', [IncidentController::class, 'index'])->name('incidents.index');
     Route::get('/incidents/{incident}', [IncidentController::class, 'show'])->name('incidents.show');

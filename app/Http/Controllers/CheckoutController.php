@@ -79,4 +79,9 @@ class CheckoutController extends Controller
             'formData'  => $result['form_data'],
         ]);
     }
+
+    public function success()
+    {
+        return Inertia::render('Checkout/Success');
+    }
 }
