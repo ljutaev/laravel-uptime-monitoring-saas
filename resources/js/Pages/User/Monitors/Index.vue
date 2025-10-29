@@ -1,10 +1,17 @@
 <script setup>
-import { ref } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { ref, computed } from 'vue';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import AuthLayout from "@/Layouts/AuthLayout.vue";
 
 const props = defineProps({
     monitors: Array,
+});
+
+const page = usePage();
+
+// Перевіряємо чи можна додати новий монітор
+const canAddMonitor = computed(() => {
+    return page.props.auth?.limits?.monitors?.can_add ?? false;
 });
 
 const deleteMonitor = (id) => {
@@ -35,7 +42,22 @@ const deleteMonitor = (id) => {
                         </p>
                     </div>
                     <div class="flex gap-3">
+                        <!-- Disabled version -->
+                        <button
+                            v-if="!canAddMonitor"
+                            disabled
+                            class="bg-gray-400 cursor-not-allowed inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-white transition shadow-sm opacity-60"
+                            title="You've reached your monitor limit. Please upgrade your plan."
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <path d="M5 10.0002H15.0006M10.0002 5V15.0006" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                            </svg>
+                            Add New (Limit Reached)
+                        </button>
+
+                        <!-- Active version -->
                         <Link
+                            v-else
                             :href="route('monitors.create')"
                             class="bg-blue-500 hover:bg-blue-600 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-white transition shadow-sm"
                         >
@@ -113,14 +135,14 @@ const deleteMonitor = (id) => {
                             <!-- Interval -->
                             <td class="px-5 py-4 whitespace-nowrap">
                                 <p class="text-sm text-gray-500 dark:text-gray-400">
-                                    {{ monitor.check_interval }} хв
+                                    {{ monitor.check_interval }} min
                                 </p>
                             </td>
 
                             <!-- Last Check -->
                             <td class="px-5 py-4 whitespace-nowrap">
                                 <p class="text-sm text-gray-500 dark:text-gray-400">
-                                    {{ monitor.last_checked_at || 'Ще не перевірявся' }}
+                                    {{ monitor.last_checked_at || 'Not checked yet' }}
                                 </p>
                             </td>
 
@@ -142,8 +164,6 @@ const deleteMonitor = (id) => {
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                                         </svg>
-
-
                                     </Link>
                                     <Link
                                         :href="route('monitors.edit', monitor.id)"
@@ -169,12 +189,32 @@ const deleteMonitor = (id) => {
                         <tr v-if="monitors.length === 0">
                             <td colspan="6" class="px-5 py-12 text-center">
                                 <p class="text-gray-500 dark:text-gray-400">
-                                    У вас ще немає моніторів. Створіть перший!
+                                    You don't have any monitors yet. Create your first one!
                                 </p>
                             </td>
                         </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Info banner when limit reached -->
+            <div v-if="!canAddMonitor" class="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <div class="flex items-start gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                        <p class="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                            Monitor limit reached
+                        </p>
+                        <p class="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                            You've used {{ $page.props.auth.limits.monitors.used }} of your available monitors.
+                            <Link :href="route('user.plans')" class="underline font-medium">
+                                Upgrade your plan
+                            </Link> to add more monitors.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
